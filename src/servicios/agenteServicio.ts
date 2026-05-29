@@ -35,3 +35,13 @@ export const obtenerAgentes = async () => {
 
   return response.json();
 };
+
+export const obtenerReportesSeguridad = async () => {
+  const response = await fetch(`${API_URL}/security/reports`);
+
+  if (!response.ok) {
+    throw new Error("Error al obtener reportes de seguridad");
+  }
+
+  return response.json();
+};

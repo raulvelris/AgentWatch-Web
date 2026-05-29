@@ -21,6 +21,7 @@ function PanelPlantillas({ usarPlantilla }: Props) {
   const [cargando, setCargando] = useState(true);
   const [categoriaSeleccionada, setCategoriaSeleccionada] =
     useState("todas");
+  const [busqueda, setBusqueda] = useState("");
 
   useEffect(() => {
     obtenerPlantillas()
@@ -34,12 +35,27 @@ function PanelPlantillas({ usarPlantilla }: Props) {
       });
   }, []);
 
-  const plantillasFiltradas =
-    categoriaSeleccionada === "todas"
-      ? plantillas
-      : plantillas.filter(
-          (plantilla) => plantilla.categoria === categoriaSeleccionada
-        );
+  const normalizarTexto = (texto: string) => {
+    return texto
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+  };
+
+  const plantillasFiltradas = plantillas.filter((plantilla) => {
+    const coincideCategoria =
+      categoriaSeleccionada === "todas" ||
+      plantilla.categoria === categoriaSeleccionada;
+
+    const textoBusqueda = normalizarTexto(busqueda);
+
+    const coincideBusqueda =
+      normalizarTexto(plantilla.nombre).includes(textoBusqueda) ||
+      normalizarTexto(plantilla.descripcion).includes(textoBusqueda) ||
+      normalizarTexto(plantilla.caso_uso).includes(textoBusqueda);
+
+    return coincideCategoria && coincideBusqueda;
+  });
 
   if (cargando) {
     return (
@@ -58,13 +74,29 @@ function PanelPlantillas({ usarPlantilla }: Props) {
 
       <div style={{ marginBottom: "20px" }}>
         <label>
+          <strong>Buscar por nombre:</strong>
+        </label>
+
+        <input
+          type="text"
+          placeholder="Ejemplo: revisor, resumen, datos..."
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          style={{
+            width: "100%",
+            marginTop: "8px",
+            marginBottom: "15px",
+          }}
+        />
+
+        <label>
           <strong>Filtrar por categoría:</strong>
         </label>
 
         <select
           value={categoriaSeleccionada}
           onChange={(e) => setCategoriaSeleccionada(e.target.value)}
-          style={{ marginLeft: "10px" }}
+          style={{ marginTop: "8px" }}
         >
           <option value="todas">Todas</option>
           <option value="análisis">Análisis</option>
@@ -73,41 +105,47 @@ function PanelPlantillas({ usarPlantilla }: Props) {
         </select>
       </div>
 
-      <div className="template-grid">
-        {plantillasFiltradas.map((plantilla) => (
-          <div className="template-card" key={plantilla.id}>
-            <h3>{plantilla.nombre}</h3>
+      {plantillasFiltradas.length === 0 ? (
+        <div className="preview-box">
+          <p>No se encontraron plantillas con esos filtros.</p>
+        </div>
+      ) : (
+        <div className="template-grid">
+          {plantillasFiltradas.map((plantilla) => (
+            <div className="template-card" key={plantilla.id}>
+              <h3>{plantilla.nombre}</h3>
 
-            <p>{plantilla.descripcion}</p>
+              <p>{plantilla.descripcion}</p>
 
-            <p>
-              <strong>Caso de uso:</strong> {plantilla.caso_uso}
-            </p>
-
-            <p>
-              <strong>Tiempo estimado:</strong>{" "}
-              {plantilla.tiempo_estimado}
-            </p>
-
-            <p>
-              <strong>Categoría:</strong> {plantilla.categoria}
-            </p>
-
-            {plantilla.favorito && (
               <p>
-                ⭐ <strong>Favorita</strong>
+                <strong>Caso de uso:</strong> {plantilla.caso_uso}
               </p>
-            )}
 
-            <button
-              className="primary"
-              onClick={() => usarPlantilla(plantilla)}
-            >
-              Usar plantilla
-            </button>
-          </div>
-        ))}
-      </div>
+              <p>
+                <strong>Tiempo estimado:</strong>{" "}
+                {plantilla.tiempo_estimado}
+              </p>
+
+              <p>
+                <strong>Categoría:</strong> {plantilla.categoria}
+              </p>
+
+              {plantilla.favorito && (
+                <p>
+                  ⭐ <strong>Favorita</strong>
+                </p>
+              )}
+
+              <button
+                className="primary"
+                onClick={() => usarPlantilla(plantilla)}
+              >
+                Usar plantilla
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
