@@ -8,6 +8,16 @@ import VistaPreviaAgente from "./componentes/VistaPreviaAgente";
 import type { Agente } from "./types/Agente";
 import "./estilos/App.css";
 
+type Plantilla = {
+  id: string;
+  nombre: string;
+  descripcion: string;
+  caso_uso: string;
+  tiempo_estimado: string;
+  categoria: string;
+  favorito: boolean;
+};
+
 function App() {
   const [activeMenu, setActiveMenu] = useState("Crear agente");
 
@@ -33,13 +43,28 @@ function App() {
     }
   }, []);
 
+  const usarPlantilla = (plantilla: Plantilla) => {
+    const nuevoAgente: Agente = {
+      id: crypto.randomUUID(),
+      nombre: plantilla.nombre,
+      tipo: plantilla.nombre,
+      proposito: plantilla.descripcion,
+      fuente: "Documentos PDF",
+      descripcionFuente: plantilla.caso_uso,
+      regla: "No divulgar información confidencial.",
+      supervision: "Medio",
+      estado: "DRAFT",
+    };
+
+    setAgentData(nuevoAgente);
+    localStorage.setItem("agentwatch_draft_agent", JSON.stringify(nuevoAgente));
+    setActiveMenu("Crear agente");
+  };
+
   return (
     <div className="page">
       <div className="shell">
-        <BarraLateral
-          activeMenu={activeMenu}
-          setActiveMenu={setActiveMenu}
-        />
+        <BarraLateral activeMenu={activeMenu} setActiveMenu={setActiveMenu} />
 
         <main className="content">
           <div className="topbar">
@@ -63,14 +88,14 @@ function App() {
           </div>
 
           {activeMenu === "Crear agente" && (
-            <WizardAgente
-              agentData={agentData}
-              setAgentData={setAgentData}
-            />
+            <WizardAgente agentData={agentData} setAgentData={setAgentData} />
           )}
 
           {activeMenu === "Plantillas" && (
-            <PanelPlantillas setActiveMenu={setActiveMenu} />
+            <PanelPlantillas
+              setActiveMenu={setActiveMenu}
+              usarPlantilla={usarPlantilla}
+            />
           )}
 
           {activeMenu === "Políticas" && <PanelPoliticas />}

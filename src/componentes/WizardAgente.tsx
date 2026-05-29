@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Agente } from "../types/Agente";
+import { crearAgente } from "../servicios/agenteServicio";
 
 type Props = {
   agentData: Agente;
@@ -49,6 +50,20 @@ function WizardAgente({ agentData, setAgentData }: Props) {
     setError("");
   };
 
+  const convertirAgenteParaBackend = () => {
+    return {
+      id: agentData.id,
+      nombre: agentData.nombre,
+      tipo: agentData.tipo,
+      proposito: agentData.proposito,
+      fuente: agentData.fuente,
+      descripcion_fuente: agentData.descripcionFuente,
+      regla: agentData.regla,
+      supervision: agentData.supervision,
+      estado: agentData.estado,
+    };
+  };
+
   const validateStep = () => {
     if (activeStep === 0) {
       if (!agentData.nombre.trim()) {
@@ -85,6 +100,21 @@ function WizardAgente({ agentData, setAgentData }: Props) {
     alert("Borrador guardado correctamente.");
   };
 
+  const finalizarAgente = async () => {
+    try {
+      const agenteBackend = convertirAgenteParaBackend();
+
+      await crearAgente(agenteBackend);
+
+      localStorage.setItem("agentwatch_draft_agent", JSON.stringify(agentData));
+
+      alert("Agente creado correctamente en el backend.");
+    } catch (error) {
+      console.error(error);
+      alert("Error al crear el agente en el backend.");
+    }
+  };
+
   const nextStep = () => {
     const isValid = validateStep();
 
@@ -95,8 +125,7 @@ function WizardAgente({ agentData, setAgentData }: Props) {
     if (activeStep < steps.length - 1) {
       setActiveStep(activeStep + 1);
     } else {
-      guardarBorrador();
-      alert("Agente creado en estado DRAFT");
+      finalizarAgente();
     }
   };
 
