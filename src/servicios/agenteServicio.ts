@@ -25,3 +25,13 @@ export const obtenerPlantillas = async () => {
 
   return response.json();
 };
+
+export const obtenerAgentes = async () => {
+  const response = await fetch(`${API_URL}/agents/`);
+
+  if (!response.ok) {
+    throw new Error("Error al obtener agentes");
+  }
+
+  return response.json();
+};

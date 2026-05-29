@@ -1,10 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { obtenerAgentes } from "../servicios/agenteServicio";
 
 type PoliticaVersion = {
   id: string;
   textoOriginal: string;
   restriccionTecnica: string;
   fecha: string;
+  agentesAsignados: string[];
+};
+
+type Agente = {
+  id: string;
+  nombre: string;
+  tipo: string;
 };
 
 const politicasPredefinidas = [
@@ -25,7 +33,8 @@ const politicasPredefinidas = [
   },
   {
     titulo: "Fuentes",
-    texto: "El agente debe citar sus fuentes cuando entregue información importante.",
+    texto:
+      "El agente debe citar sus fuentes cuando entregue información importante.",
     industria: "Gobierno",
   },
   {
@@ -39,10 +48,135 @@ function PanelPoliticas() {
   const [politica, setPolitica] = useState("");
   const [traduccion, setTraduccion] = useState("");
   const [versiones, setVersiones] = useState<PoliticaVersion[]>([]);
+  const [agentes, setAgentes] = useState<Agente[]>([]);
+  const [agentesSeleccionados, setAgentesSeleccionados] = useState<string[]>(
+    []
+  );
+
+  useEffect(() => {
+    obtenerAgentes()
+      .then((data) => {
+        setAgentes(data.agents);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  }, []);
 
   const usarPoliticaPredefinida = (texto: string) => {
     setPolitica(texto);
     setTraduccion("");
+  };
+
+  const cambiarSeleccionAgente = (nombreAgente: string) => {
+    if (agentesSeleccionados.includes(nombreAgente)) {
+      setAgentesSeleccionados(
+        agentesSeleccionados.filter((agente) => agente !== nombreAgente)
+      );
+    } else {
+      setAgentesSeleccionados([...agentesSeleccionados, nombreAgente]);
+    }
+  };
+
+  const normalizarTexto = (texto: string) => {
+    return texto
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[.,;:¿?¡!]/g, "")
+      .trim();
+  };
+
+  const obtenerTemaPrincipal = (texto: string) => {
+    const textoNormalizado = normalizarTexto(texto);
+
+    const temas = [
+      "competidores",
+      "competidor",
+      "informacion confidencial",
+      "datos confidenciales",
+      "diagnosticos",
+      "recomendaciones medicas",
+      "fuentes",
+      "espanol",
+      "ingles",
+    ];
+
+    const temaEncontrado = temas.find((tema) =>
+      textoNormalizado.includes(tema)
+    );
+
+    return temaEncontrado || "";
+  };
+
+  const obtenerIntencion = (texto: string) => {
+    const textoNormalizado = normalizarTexto(texto);
+
+    const patronesNegacion = [
+      "no debe",
+      "nunca",
+      "prohibido",
+      "no puede",
+      "evitar",
+      "no mencionar",
+      "no revelar",
+      "no responder",
+      "no dar",
+    ];
+
+    const patronesObligacion = [
+      "debe",
+      "siempre",
+      "obligatorio",
+      "permitir",
+      "puede",
+      "mencionar",
+      "revelar",
+      "responder",
+      "dar",
+      "citar",
+    ];
+
+    const esNegacion = patronesNegacion.some((patron) =>
+      textoNormalizado.includes(patron)
+    );
+
+    if (esNegacion) {
+      return "NEGACION";
+    }
+
+    const esObligacion = patronesObligacion.some((patron) =>
+      textoNormalizado.includes(patron)
+    );
+
+    if (esObligacion) {
+      return "OBLIGACION";
+    }
+
+    return "NEUTRA";
+  };
+
+  const existeConflicto = () => {
+    const temaNuevaPolitica = obtenerTemaPrincipal(politica);
+    const intencionNuevaPolitica = obtenerIntencion(politica);
+
+    if (!temaNuevaPolitica || intencionNuevaPolitica === "NEUTRA") {
+      return false;
+    }
+
+    return versiones.some((version) => {
+      const temaGuardado = obtenerTemaPrincipal(version.textoOriginal);
+      const intencionGuardada = obtenerIntencion(version.textoOriginal);
+
+      const mismoTema = temaGuardado === temaNuevaPolitica;
+      const intencionesOpuestas =
+        (intencionGuardada === "NEGACION" &&
+          intencionNuevaPolitica === "OBLIGACION") ||
+        (intencionGuardada === "OBLIGACION" &&
+          intencionNuevaPolitica === "NEGACION");
+
+      return mismoTema && intencionesOpuestas;
+    });
   };
 
   const traducirPolitica = () => {
@@ -67,18 +201,30 @@ function PanelPoliticas() {
       return;
     }
 
+    if (agentesSeleccionados.length === 0) {
+      alert("Selecciona al menos un agente para asignar la política.");
+      return;
+    }
+
+    if (existeConflicto()) {
+      alert("Conflicto detectado: ya existe una política opuesta sobre el mismo tema.");
+      return;
+    }
+
     const nuevaVersion: PoliticaVersion = {
       id: crypto.randomUUID(),
       textoOriginal: politica,
       restriccionTecnica: traduccion,
       fecha: new Date().toLocaleString(),
+      agentesAsignados: agentesSeleccionados,
     };
 
     setVersiones([nuevaVersion, ...versiones]);
     setPolitica("");
     setTraduccion("");
+    setAgentesSeleccionados([]);
 
-    alert("Política guardada como nueva versión.");
+    alert("Política guardada y asignada correctamente.");
   };
 
   return (
@@ -128,6 +274,32 @@ function PanelPoliticas() {
         onChange={(e) => setPolitica(e.target.value)}
       />
 
+      <div className="preview-box">
+        <strong>Asignar política a agentes</strong>
+
+        {agentes.length === 0 ? (
+          <p>No hay agentes creados todavía.</p>
+        ) : (
+          agentes.map((agente) => (
+            <label
+              key={agente.id}
+              style={{
+                display: "block",
+                marginTop: "10px",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={agentesSeleccionados.includes(agente.nombre)}
+                onChange={() => cambiarSeleccionAgente(agente.nombre)}
+              />{" "}
+              {agente.nombre} — {agente.tipo}
+            </label>
+          ))
+        )}
+      </div>
+
       <div className="actions">
         <button className="primary" onClick={traducirPolitica}>
           Traducir política
@@ -157,6 +329,12 @@ function PanelPoliticas() {
               <strong>v{versiones.length - index}</strong>
               <p>{version.textoOriginal}</p>
               <small>{version.fecha}</small>
+
+              <p>
+                <strong>Agentes asignados:</strong>{" "}
+                {version.agentesAsignados.join(", ")}
+              </p>
+
               <pre>{version.restriccionTecnica}</pre>
             </div>
           ))
