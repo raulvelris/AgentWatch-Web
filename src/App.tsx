@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
+
 import BarraLateral from "./componentes/BarraLateral";
 import WizardAgente from "./componentes/WizardAgente";
 import PanelPlantillas from "./componentes/PanelPlantillas";
 import PanelPoliticas from "./componentes/PanelPoliticas";
 import PanelAuditoria from "./componentes/PanelAuditoria";
+import PanelMetricasNegocio from "./componentes/PanelMetricasNegocio";
+import ReplayEjecucion from "./componentes/ReplayEjecucion";
 import VistaPreviaAgente from "./componentes/VistaPreviaAgente";
+
 import type { Agente } from "./types/Agente";
+
 import "./estilos/App.css";
 
 type Plantilla = {
@@ -57,7 +62,12 @@ function App() {
     };
 
     setAgentData(nuevoAgente);
-    localStorage.setItem("agentwatch_draft_agent", JSON.stringify(nuevoAgente));
+
+    localStorage.setItem(
+      "agentwatch_draft_agent",
+      JSON.stringify(nuevoAgente)
+    );
+
     setActiveMenu("Crear agente");
   };
 
@@ -101,6 +111,10 @@ function App() {
           {activeMenu === "Políticas" && <PanelPoliticas />}
 
           {activeMenu === "Auditoría estática" && <PanelAuditoria />}
+
+          {activeMenu === "Métricas de negocio" && <PanelMetricasNegocio />}
+
+          {activeMenu === "Replay de ejecución" && <ReplayEjecucion />}
         </main>
       </div>
 
