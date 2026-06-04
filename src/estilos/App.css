@@ -258,3 +258,127 @@ textarea {
   font-size: 14px;
   cursor: pointer;
 }
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.metric-card {
+  background: #0f1b33;
+  border: 1px solid #263955;
+  border-radius: 18px;
+  padding: 18px;
+}
+
+.metric-card span {
+  display: block;
+  color: #8fb4ff;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.metric-card strong {
+  display: block;
+  font-size: 24px;
+  margin-bottom: 6px;
+}
+
+.metric-card small {
+  color: #aab6cc;
+}
+
+.table-card {
+  background: #0f1b33;
+  border: 1px solid #263955;
+  border-radius: 18px;
+  padding: 20px;
+  margin-top: 18px;
+}
+
+.replay-input {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid #334869;
+  background: #050b1a;
+  color: white;
+  font-size: 15px;
+}
+
+.replay-controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.step-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: white;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.step-info-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.step-info-grid div {
+  background: #081124;
+  border: 1px solid #24364f;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.step-info-grid span {
+  display: block;
+  color: #8fb4ff;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.code-box {
+  background: #050b1a;
+  border: 1px solid #263955;
+  border-radius: 14px;
+  padding: 16px;
+  color: #dbeafe;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+}
+
+th,
+td {
+  padding: 12px;
+  border-bottom: 1px solid #263955;
+  text-align: left;
+}
+
+th {
+  color: #8fb4ff;
+}
+
+.active-row {
+  background: #172554;
+}
+
+@media (max-width: 900px) {
+  .metric-grid,
+  .step-info-grid {
+    grid-template-columns: 1fr;
+  }
+}
