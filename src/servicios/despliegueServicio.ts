@@ -2,12 +2,13 @@ import type { EventoDespliegue } from "../types/Despliegue";
 import type { Version } from "../types/Version";
 
 // Mismo contrato y estilo que agenteServicio.ts (fetch plano, sin librerías).
-const API_URL = "http://127.0.0.1:8000/api/v1";
+const API_URL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000/api/v1";
 
 // Interruptor de modo demo. Con MODO_MOCK = true los componentes corren y se
 // demuestran SIN backend (log en vivo simulado + fixtures de versiones).
-// Pon false cuando el backend del Módulo 2 esté disponible.
-export const MODO_MOCK = true;
+// Se controla con la env var VITE_MODO_MOCK ("true" activa el mock); ausente
+// o cualquier otro valor usa el backend real. Ver .env.example.
+export const MODO_MOCK = import.meta.env.VITE_MODO_MOCK === "true";
 
 export interface ManejadoresDespliegue {
   onEvento: (evento: EventoDespliegue) => void;

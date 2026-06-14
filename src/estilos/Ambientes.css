@@ -1,0 +1,128 @@
+/* Módulo 2 — RF06 (Ambientes / Promotion). Clases nuevas y aisladas; reutilizan
+   la paleta del repo (#020617 / #0f172a / #111c33 / #38bdf8 / #334155). */
+
+.bloque-titulo {
+  margin: 26px 0 4px;
+  font-size: 18px;
+}
+
+/* --- Tarjetas de ambiente (dev / staging / prod) --- */
+.ambientes-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.ambiente-card {
+  background: #020617;
+  border: 1px solid #334155;
+  border-left: 3px solid #475569;
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.ambiente-card.activa {
+  border-left-color: #22c55e;
+  box-shadow: 0 0 18px rgba(34, 197, 94, 0.18);
+}
+
+.ambiente-nombre {
+  font-weight: 800;
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #e2e8f0;
+}
+
+/* --- Formulario de promotion --- */
+.promo-form {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0 18px;
+}
+
+/* Los <label>/<select>/<input> heredan el estilo global de index.css. */
+
+/* --- Tabla (historial + outbox) --- */
+.tabla-promos {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+  font-size: 14px;
+}
+
+.tabla-promos th,
+.tabla-promos td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.6);
+  vertical-align: top;
+}
+
+.tabla-promos th {
+  color: #94a3b8;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tabla-promos td {
+  color: #cbd5e1;
+}
+
+/* Píldora ámbar para "pendiente" (completa la familia .pill de Despliegue.css). */
+.pill-warn {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border-color: #f59e0b;
+}
+
+/* --- Outbox colapsable --- */
+.outbox-toggle {
+  margin-top: 24px;
+  width: 100%;
+  text-align: left;
+}
+
+/* --- Stubs honestos (Key Vault / Kubernetes) --- */
+.stub-box {
+  position: relative;
+  margin-top: 16px;
+  padding: 16px 16px 16px 18px;
+  border: 1px dashed #64748b;
+  border-radius: 14px;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(100, 116, 139, 0.06),
+    rgba(100, 116, 139, 0.06) 10px,
+    rgba(100, 116, 139, 0.12) 10px,
+    rgba(100, 116, 139, 0.12) 20px
+  );
+  color: #cbd5e1;
+}
+
+.stub-label {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.18);
+  border: 1px solid #64748b;
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+@media (max-width: 720px) {
+  .ambientes-grid,
+  .promo-form {
+    grid-template-columns: 1fr;
+  }
+}

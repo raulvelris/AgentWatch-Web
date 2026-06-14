@@ -1,6 +1,7 @@
 import { useState } from "react";
 import RegistroDespliegue from "./RegistroDespliegue";
 import HistorialVersiones from "./HistorialVersiones";
+import PanelAmbientes from "./PanelAmbientes";
 import { MODO_MOCK } from "../servicios/despliegueServicio";
 import "../estilos/Despliegue.css";
 
@@ -68,6 +69,8 @@ function PanelDespliegue({ defaultAgentId }: Props) {
       <RegistroDespliegue key={agentId} agentId={agentId} />
 
       <HistorialVersiones key={agentId} agentId={agentId} />
+
+      <PanelAmbientes key={agentId} agentId={agentId} />
     </div>
   );
 }
