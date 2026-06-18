@@ -100,21 +100,30 @@ function WizardAgente({ agentData, setAgentData }: Props) {
     alert("Borrador guardado correctamente.");
   };
 
-  const finalizarAgente = async () => {
-    try {
-      const agenteBackend = convertirAgenteParaBackend();
+ const finalizarAgente = async () => {
+  try {
+    const agenteBackend = convertirAgenteParaBackend();
 
-      await crearAgente(agenteBackend);
+    const respuesta = await crearAgente(agenteBackend);
 
-      localStorage.setItem("agentwatch_draft_agent", JSON.stringify(agentData));
+    const agenteCreado = {
+      ...agentData,
+      id: respuesta.agent.id,
+    };
 
-      alert("Agente creado correctamente en el backend.");
-    } catch (error) {
-      console.error(error);
-      alert("Error al crear el agente en el backend.");
-    }
-  };
+    setAgentData(agenteCreado);
 
+    localStorage.setItem(
+      "agentwatch_draft_agent",
+      JSON.stringify(agenteCreado)
+    );
+
+    alert("Agente creado correctamente en el backend.");
+  } catch (error) {
+    console.error(error);
+    alert("Error al crear el agente en el backend.");
+  }
+};
   const nextStep = () => {
     const isValid = validateStep();
 
