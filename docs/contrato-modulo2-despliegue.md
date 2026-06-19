@@ -312,17 +312,84 @@ interface Notificacion {
 
 ---
 
+### Variables de entorno por ambiente (cifradas con Fernet)
+
+RF06/ADR-02.6. Cada agente tiene variables independientes por ambiente,
+**cifradas con Fernet** (stand-in local de Azure Key Vault). La BD solo almacena
+ciphertext y la API solo devuelve valores **enmascarados** — nunca el texto
+plano (EC-02.5). La clave de cifrado vive fuera de la BD en `ENVVARS_KEY`.
+
+#### Listar variables (enmascaradas)
+
+```
+GET /api/v1/agents/{id}/environments/{env}/vars
+```
+
+`env` ∈ `{dev, staging, prod}` (otro valor → `400`).
+
+**Response** `200 OK`:
+
+```json
+{ "vars": { "OPENAI_KEY": "sk-***", "DATABASE_URL": "post***" } }
+```
+
+Valores enmascarados (primeros 4 caracteres + `***`). Sin variables: `{ "vars": {} }`.
+
+#### Guardar/actualizar variables (upsert, cifrado)
+
+```
+PUT /api/v1/agents/{id}/environments/{env}/vars
+Content-Type: application/json
+```
+
+**Body:**
+
+```json
+{ "vars": { "OPENAI_KEY": "sk-valor-real", "DATABASE_URL": "postgresql://..." } }
+```
+
+Cada variable se guarda **cifrada con Fernet**; sobrescribe la combinación
+`(agent_id, env, nombre)` si ya existe. `env` inválido o `vars` que no sea
+objeto → `400`.
+
+**Response** `200 OK`:
+
+```json
+{ "ok": true, "guardadas": 2 }
+```
+
+#### Eliminar una variable
+
+```
+DELETE /api/v1/agents/{id}/environments/{env}/vars/{nombre}
+```
+
+**Response** `200 OK`: `{ "ok": true }`. Variable inexistente → `404`.
+
+**Tipo TS (`src/servicios/ambientesServicio.ts`):**
+
+```ts
+interface VarsAmbiente {
+  [nombre: string]: string; // valor enmascarado: "sk-***"
+}
+```
+
+> **EC-02.5 (demo):** un `SELECT valor_cifrado FROM agent_env_vars` en vivo
+> devuelve un token Fernet (`gAAA...`), nunca el secreto en texto plano.
+
+---
+
 ### Pendiente de implementación en backend (stubs honestos en UI)
 
-Las siguientes funcionalidades de HU-06 **no tienen endpoints** en el backend
-actual y se muestran en el frontend como badges `⚠ STUB`:
+Las siguientes funcionalidades de HU-06 son **infraestructura de producción** y
+se muestran en el frontend como badges `⚠ STUB`:
 
-- **Azure Key Vault** (HU-06 CA-02): variables de entorno cifradas por ambiente.
-  Requiere suscripción y credenciales Azure.
+- **Azure Key Vault** (HU-06 CA-02): el almacén gestionado de secretos de
+  producción (ADR-02.4). En el prototipo, el cifrado de variables por ambiente
+  ya está implementado con **Fernet local** (ver sección anterior); Key Vault
+  reemplaza a Fernet cuando exista la suscripción, sin cambiar el contrato.
 - **Kubernetes namespaces** (HU-06): los ambientes `dev/staging/prod` son hoy
   etiquetas en SQLite, no namespaces reales de K8s.
-- **Variables por ambiente** (HU-06 CA-01): no existe
-  `GET/PUT /agents/{id}/environments/{env}/vars` en el backend.
 
 ---
 

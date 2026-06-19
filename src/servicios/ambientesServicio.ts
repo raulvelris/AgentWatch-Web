@@ -163,3 +163,86 @@ function promocionarMock(agentId: string, params: ParamsPromocion): Promocion {
 
   return nueva;
 }
+
+// ---------------------------------------------------------------------------
+// RF06/ADR-02.6 — Variables de entorno por ambiente, cifradas con Fernet
+// (stand-in local de Azure Key Vault) en el backend. La API solo devuelve
+// valores ENMASCARADOS, nunca el texto plano (EC-02.5).
+// ---------------------------------------------------------------------------
+
+export interface VarsAmbiente {
+  [nombre: string]: string; // valor enmascarado: "sk-***", "post***", "***"
+}
+
+export async function listarVarsAmbiente(
+  agentId: string,
+  env: string
+): Promise<VarsAmbiente> {
+  if (MODO_MOCK) {
+    // Mock: dos variables en dev, una en staging, ninguna en prod (enmascaradas).
+    const mock: Record<string, VarsAmbiente> = {
+      dev: { OPENAI_KEY: "sk-***", DATABASE_URL: "post***" },
+      staging: { OPENAI_KEY: "sk-***" },
+      prod: {},
+    };
+    return mock[env] ?? {};
+  }
+  const respuesta = await fetch(
+    `${API_URL}/agents/${agentId}/environments/${env}/vars`
+  );
+  if (!respuesta.ok) {
+    throw new Error(`No se pudieron cargar las variables de ${env}.`);
+  }
+  const datos = await respuesta.json();
+  return datos?.vars && typeof datos.vars === "object" ? datos.vars : {};
+}
+
+export async function guardarVarsAmbiente(
+  agentId: string,
+  env: string,
+  vars: Record<string, string>
+): Promise<void> {
+  if (MODO_MOCK) {
+    return; // Mock: guardado simulado, el backend lo cifraría con Fernet.
+  }
+  const respuesta = await fetch(
+    `${API_URL}/agents/${agentId}/environments/${env}/vars`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vars }),
+    }
+  );
+  if (!respuesta.ok) {
+    // Mismo manejo que solicitarPromocion: el backend manda el motivo en `detail`.
+    let detalle = `El backend respondió ${respuesta.status}`;
+    try {
+      const error = await respuesta.json();
+      if (typeof error?.detail === "string") {
+        detalle = error.detail;
+      }
+    } catch {
+      // Respuesta sin cuerpo JSON: se queda el mensaje por defecto.
+    }
+    throw new Error(detalle);
+  }
+}
+
+export async function eliminarVarAmbiente(
+  agentId: string,
+  env: string,
+  nombre: string
+): Promise<void> {
+  if (MODO_MOCK) {
+    return; // Mock: borrado simulado sin backend.
+  }
+  const respuesta = await fetch(
+    `${API_URL}/agents/${agentId}/environments/${env}/vars/${encodeURIComponent(
+      nombre
+    )}`,
+    { method: "DELETE" }
+  );
+  if (!respuesta.ok) {
+    throw new Error(`No se pudo eliminar la variable ${nombre}.`);
+  }
+}

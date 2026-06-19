@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  eliminarVarAmbiente,
+  guardarVarsAmbiente,
   listarAmbientes,
   listarNotificaciones,
   listarPromociones,
+  listarVarsAmbiente,
   solicitarPromocion,
 } from "../servicios/ambientesServicio";
+import type { VarsAmbiente } from "../servicios/ambientesServicio";
 import type {
   Ambiente,
   EstadoPromocion,
@@ -60,6 +64,19 @@ function PanelAmbientes({ agentId }: Props) {
   } | null>(null);
 
   const [outboxAbierto, setOutboxAbierto] = useState(false);
+
+  // RF06/ADR-02.6: variables de entorno cifradas (Fernet) por ambiente.
+  const [varsEnv, setVarsEnv] = useState("dev");
+  const [vars, setVars] = useState<VarsAmbiente>({});
+  const [varsCargando, setVarsCargando] = useState(true);
+  const [varsError, setVarsError] = useState<string | null>(null);
+  const [nombreVar, setNombreVar] = useState("");
+  const [valorVar, setValorVar] = useState("");
+  const [guardandoVar, setGuardandoVar] = useState(false);
+  const [varsMsg, setVarsMsg] = useState<{
+    tipo: "ok" | "err";
+    texto: string;
+  } | null>(null);
 
   // Carga sin setState (la usan el efecto y "Reintentar"); así el setState vive
   // siempre en callbacks async y cumple react-hooks/set-state-in-effect.
@@ -162,6 +179,96 @@ function PanelAmbientes({ agentId }: Props) {
       });
     } finally {
       setEnviando(false);
+    }
+  };
+
+  // --- RF06/ADR-02.6: variables de entorno cifradas (Fernet) por ambiente ---
+  // Mismo patrón de carga que el efecto principal: setState solo en callbacks
+  // async (cumple react-hooks/set-state-in-effect). La recarga manual y el
+  // setState síncrono viven en manejadores de evento.
+  const cargarVars = useCallback(
+    () => listarVarsAmbiente(agentId, varsEnv),
+    [agentId, varsEnv]
+  );
+
+  useEffect(() => {
+    let ignorar = false;
+    cargarVars()
+      .then((v) => {
+        if (ignorar) return;
+        setVars(v);
+        setVarsError(null);
+      })
+      .catch((e: unknown) => {
+        if (ignorar) return;
+        setVarsError(
+          e instanceof Error ? e.message : "No se pudieron cargar las variables."
+        );
+      })
+      .finally(() => {
+        if (!ignorar) setVarsCargando(false);
+      });
+    return () => {
+      ignorar = true;
+    };
+  }, [cargarVars]);
+
+  const recargarVars = useCallback(async () => {
+    try {
+      const v = await listarVarsAmbiente(agentId, varsEnv);
+      setVars(v);
+      setVarsError(null);
+    } catch (e) {
+      setVarsError(
+        e instanceof Error ? e.message : "No se pudieron recargar las variables."
+      );
+    }
+  }, [agentId, varsEnv]);
+
+  const guardarVar = async () => {
+    const nombre = nombreVar.trim();
+    if (!nombre) {
+      setVarsMsg({ tipo: "err", texto: "Falta el nombre de la variable." });
+      return;
+    }
+    if (!valorVar) {
+      setVarsMsg({ tipo: "err", texto: "Falta el valor de la variable." });
+      return;
+    }
+    setGuardandoVar(true);
+    setVarsMsg(null);
+    try {
+      await guardarVarsAmbiente(agentId, varsEnv, { [nombre]: valorVar });
+      setVarsMsg({
+        tipo: "ok",
+        texto: `Variable "${nombre}" guardada cifrada en ${varsEnv}.`,
+      });
+      setNombreVar("");
+      setValorVar("");
+      await recargarVars();
+    } catch (e) {
+      setVarsMsg({
+        tipo: "err",
+        texto:
+          e instanceof Error ? e.message : "No se pudo guardar la variable.",
+      });
+    } finally {
+      setGuardandoVar(false);
+    }
+  };
+
+  const eliminarVar = async (nombre: string) => {
+    setVarsMsg(null);
+    try {
+      await eliminarVarAmbiente(agentId, varsEnv, nombre);
+      setVarsMsg({ tipo: "ok", texto: `Variable "${nombre}" eliminada.` });
+      await recargarVars();
+    } catch (e) {
+      setVarsMsg({
+        tipo: "err",
+        texto:
+          e instanceof Error ? e.message : "No se pudo eliminar la variable.",
+      });
     }
   };
 
@@ -342,15 +449,129 @@ function PanelAmbientes({ agentId }: Props) {
           </table>
         ))}
 
-      {/* Stubs honestos: documentados en la arquitectura, sin backend aún. */}
-      <div className="stub-box">
-        <span className="stub-label">⚠ STUB</span>
-        <p style={{ margin: 0 }}>
-          🔐 Variables de entorno cifradas vía Azure Key Vault — integración
-          pendiente (HU-06 CA-02, requiere suscripción Azure). El backend aún no
-          expone esta API.
-        </p>
+      {/* RF06/ADR-02.6: variables de entorno por ambiente, cifradas con Fernet
+          (stand-in local de Key Vault). La API solo devuelve valores
+          enmascarados; la BD solo contiene ciphertext (EC-02.5). */}
+      <h3 className="bloque-titulo">Variables de entorno (cifradas)</h3>
+
+      <div className="actions" style={{ justifyContent: "flex-start" }}>
+        <div>
+          <label htmlFor="vars-env">Ambiente</label>
+          <select
+            id="vars-env"
+            value={varsEnv}
+            onChange={(e) => {
+              setVarsEnv(e.target.value);
+              setVarsCargando(true);
+              setVarsMsg(null);
+            }}
+          >
+            {ambs.map((amb) => (
+              <option key={amb} value={amb}>
+                {amb}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      {/* Formulario: agregar/actualizar una variable (el backend la cifra). */}
+      <div className="promo-form">
+        <div>
+          <label htmlFor="var-nombre">Nombre</label>
+          <input
+            id="var-nombre"
+            type="text"
+            value={nombreVar}
+            onChange={(e) => setNombreVar(e.target.value)}
+            placeholder="OPENAI_KEY"
+          />
+        </div>
+        <div>
+          <label htmlFor="var-valor">Valor (secreto)</label>
+          <input
+            id="var-valor"
+            type="password"
+            value={valorVar}
+            onChange={(e) => setValorVar(e.target.value)}
+            placeholder="sk-..."
+          />
+        </div>
+      </div>
+
+      <div className="actions" style={{ justifyContent: "flex-start" }}>
+        <button className="primary" onClick={guardarVar} disabled={guardandoVar}>
+          {guardandoVar ? "Cifrando..." : "Guardar cifrada"}
+        </button>
+      </div>
+
+      {varsMsg && (
+        <div className={varsMsg.tipo === "ok" ? "preview-box" : "error-box"}>
+          <p style={{ margin: 0 }}>{varsMsg.texto}</p>
+        </div>
+      )}
+
+      {/* Tabla de variables del ambiente (valores enmascarados por el backend). */}
+      {varsCargando ? (
+        <p>Cargando variables de {varsEnv}...</p>
+      ) : varsError ? (
+        <div className="error-box">
+          <p style={{ margin: 0 }}>{varsError}</p>
+        </div>
+      ) : Object.keys(vars).length === 0 ? (
+        <div className="preview-box">
+          <p style={{ margin: 0 }}>
+            No hay variables en <strong>{varsEnv}</strong>.
+          </p>
+        </div>
+      ) : (
+        <table className="tabla-promos">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Valor (enmascarado)</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(vars).map(([nombre, valor]) => (
+              <tr key={nombre}>
+                <td>{nombre}</td>
+                <td>
+                  <code>{valor}</code>
+                </td>
+                <td>
+                  <button
+                    className="secondary"
+                    onClick={() => eliminarVar(nombre)}
+                  >
+                    Eliminar
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {/* Badge: IMPLEMENTADO (no es un stub). Borde sólido verde, no punteado. */}
+      <div
+        style={{
+          marginTop: 16,
+          padding: "12px 16px",
+          border: "1px solid #22c55e",
+          borderRadius: 14,
+          background: "rgba(34, 197, 94, 0.08)",
+          color: "#cbd5e1",
+        }}
+      >
+        🔐 Cifrado: <strong>Fernet local (ADR-02.6)</strong> — clave fuera de la
+        BD (<code>ENVVARS_KEY</code>); la API solo expone valores enmascarados y
+        la BD solo contiene ciphertext (EC-02.5). En producción: Azure Key Vault
+        (ADR-02.4).
+      </div>
+
+      {/* Stub honesto restante: documentado en la arquitectura, sin backend. */}
 
       <div className="stub-box">
         <span className="stub-label">⚠ STUB</span>
