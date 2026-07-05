@@ -201,6 +201,12 @@ body; con un token inválido devuelve `401`.
 - `ambiente_destino == "prod"` y rol ≠ `"ADMIN"` → `403` con `detail` en español
 - Rol `"ADMIN"` → `estado: "aprobada"`, `aprobado_por` = solicitante
 - Rol no-admin → `estado: "pendiente"`, encola notificación al ADMIN
+- Una promoción `aprobada` mueve la config del agente: copia (upsert) sus
+  variables de entorno del `ambiente_origen` al `ambiente_destino`. Sobrescribe
+  las de igual nombre y conserva las que el destino tuviera aparte. El valor no
+  se altera en el traslado (RF06, "mover la configuración sin modificaciones").
+  Nota: la config base del agente (Módulo 1) no es por-ambiente y no se mueve
+  aquí; lo que se mueve son las variables por ambiente del Módulo 2.
 
 **Response** `200 OK`:
 
