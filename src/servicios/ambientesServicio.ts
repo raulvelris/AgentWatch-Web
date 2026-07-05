@@ -1,3 +1,4 @@
+import { fetchConAuth } from "./authServicio";
 import { MODO_MOCK } from "./despliegueServicio";
 import type {
   Ambiente,
@@ -34,7 +35,7 @@ export async function solicitarPromocion(
     return promocionarMock(agentId, params);
   }
 
-  const respuesta = await fetch(`${API_URL}/agents/${agentId}/promote`, {
+  const respuesta = await fetchConAuth(`${API_URL}/agents/${agentId}/promote`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -205,7 +206,7 @@ export async function guardarVarsAmbiente(
   if (MODO_MOCK) {
     return; // Mock: guardado simulado, el backend lo cifraría con Fernet.
   }
-  const respuesta = await fetch(
+  const respuesta = await fetchConAuth(
     `${API_URL}/agents/${agentId}/environments/${env}/vars`,
     {
       method: "PUT",
@@ -236,7 +237,7 @@ export async function eliminarVarAmbiente(
   if (MODO_MOCK) {
     return; // Mock: borrado simulado sin backend.
   }
-  const respuesta = await fetch(
+  const respuesta = await fetchConAuth(
     `${API_URL}/agents/${agentId}/environments/${env}/vars/${encodeURIComponent(
       nombre
     )}`,

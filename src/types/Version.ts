@@ -2,7 +2,9 @@
 // Forma que devuelve el backend (snake_case, igual que ReporteAuditoria).
 // El listado llega envuelto: GET /agents/{id}/versions -> { versions: Version[] }.
 
-export type EstadoVersion = "activa" | "inactiva" | "rollback";
+// "fallida": una versión candidata cuyo deploy falló y el revert automático
+// dejó vigente a la previa (RF05). El backend la devuelve en GET /versions.
+export type EstadoVersion = "activa" | "inactiva" | "rollback" | "fallida";
 
 export interface Version {
   id: string;
