@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
+import ControlSesion from "./componentes/ControlSesion";
 import PanelDespliegue from "./componentes/PanelDespliegue";
 
 // Entry standalone del Módulo 2 (Despliegue / CI-CD). Se monta como página
@@ -34,6 +35,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <div className="page">
       <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
+        <ControlSesion />
         <PanelDespliegue defaultAgentId={leerIdAgenteGuardado()} />
       </div>
     </div>

@@ -57,30 +57,42 @@ data: {"fase":"healthcheck","mensaje":"Verificando salud..."}
 data: {"fase":"done","mensaje":"Despliegue completo","url":"https://agente-xyz.run.app","salud":"healthy","estado":"success"}
 ```
 
-En fallo terminal (el cliente lo trata como error y muestra "Reintentar"):
+En fallo (el cliente lo trata como error y muestra "Reintentar"), el backend NO
+emite un frame `fase:"error"`. Emite tres frames en secuencia: la fase que falla
+con `estado:"error"`, luego un frame `fase:"revert"` (revert automático), y
+finalmente el frame terminal `fase:"done"` con `estado:"failed"`:
 
 ```
-data: {"fase":"error","mensaje":"Build falló: ...","estado":"failed"}
-```
+data: {"fase":"healthcheck","mensaje":"Error en la fase 'healthcheck': ...","estado":"error"}
 
-o bien un frame final `done` con `estado: "failed"` (también tratado como fallo).
+data: {"fase":"revert","mensaje":"Revert automático: la versión X vuelve a estar vigente.","version_restaurada":"agente-v1"}
+
+data: {"fase":"done","mensaje":"Despliegue fallido.","estado":"failed","version_id":"agente-v2","fase_fallo":"healthcheck"}
+```
 
 **Reglas que el backend debe cumplir**
 
 - Hacer flush por línea (no bufferizar): `yield f"data: {json.dumps(evento)}\n\n"`.
   En FastAPI: `StreamingResponse(generador(), media_type="text/event-stream")`.
-- Emitir **siempre** un frame terminal (`fase: "done"` o `fase: "error"`) antes
-  de cerrar. Si el stream se cierra sin frame terminal, el frontend lo reporta
-  como "la conexión se cerró antes de finalizar".
-- El frame `done` trae `url` (string), `salud` (`"healthy" | "unhealthy"`) y
-  `estado` (`"success" | "failed"`).
+- Emitir **siempre** el frame terminal `fase:"done"` antes de cerrar (con
+  `estado:"success"` o `estado:"failed"`). El fallo se señala con `estado:"error"`
+  en la fase que rompe y luego un `done` con `estado:"failed"`. Si el stream se
+  cierra sin `done`, el frontend lo reporta como "la conexión se cerró antes de
+  finalizar".
+- El frame `done` exitoso trae `url` (string), `salud` (`"healthy" | "unhealthy"`)
+  y `estado:"success"`.
+
+**Auth:** `POST /deploy` exige token ADMIN (`Authorization: Bearer <token>`):
+`401` sin token, `403` si el rol no es ADMIN. El autor del despliegue sale del
+claim `sub` del token.
 
 **Tipo TS (`src/types/Despliegue.ts`)**
 
 ```ts
-type FaseDespliegue = "queued" | "build" | "push" | "deploy" | "healthcheck" | "done" | "error";
+type FaseDespliegue = "queued" | "build" | "push" | "deploy" | "healthcheck" | "revert" | "done" | "error";
 type EstadoSalud = "healthy" | "unhealthy";
-type EstadoDespliegue = "success" | "failed";
+// "error" aparece en la fase que falla; "success"/"failed" en el frame done.
+type EstadoDespliegue = "success" | "failed" | "error";
 
 interface EventoDespliegue {
   fase: FaseDespliegue;
@@ -150,7 +162,10 @@ como vigente). Aparece en el historial que devuelve `GET /versions`, así que
 POST /api/v1/agents/{id}/rollback/{versionId}
 ```
 
-**Response** `200 OK`, JSON: `{ "ok": true }`.
+**Auth:** exige token ADMIN (`Authorization: Bearer <token>`): `401` sin token,
+`403` si el rol no es ADMIN. Versión inexistente → `404`.
+
+**Response** `200 OK`, JSON: `{ "ok": true, "version": {...}, "rollback_a": "..." }`.
 
 Tras un rollback exitoso el frontend recarga `GET /versions`, por lo que el
 backend debe dejar la versión objetivo como `activa` y la anterior activa como
@@ -195,11 +210,12 @@ Content-Type: application/json
 }
 ```
 
-`rol_solicitante` acepta `"ADMIN"` o cualquier otro valor (tratado como no-admin).
-Este campo es un **stub temporal** (HU-06): cuando el Módulo 4 (RF13) emita JWT,
-el rol saldrá de los claims del token en el header `Authorization: Bearer`. No
-enviar un token inválido — sin el header, el backend usa `rol_solicitante` del
-body; con un token inválido devuelve `401`.
+**Auth:** promover exige un token válido en el header `Authorization: Bearer <token>`
+(`401` sin token). El rol sale de los claims del JWT; el destino `prod` exige rol
+`ADMIN` (`403` si no). El campo `rol_solicitante` del body quedó **deprecado**: ya
+no se usa, el rol es el del token. Se mantiene en el body por compatibilidad hasta
+que el front deje de mandarlo. El front obtiene el token del login
+(`GET /api/v1/auth/login?usuario=...`) y lo guarda para las llamadas del módulo.
 
 **Reglas del backend:**
 
@@ -337,6 +353,10 @@ RF06/ADR-02.6. Cada agente tiene variables independientes por ambiente,
 ciphertext y la API solo devuelve valores **enmascarados** — nunca el texto
 plano (EC-02.5). La clave de cifrado vive fuera de la BD en `ENVVARS_KEY`.
 
+**Auth:** el PUT y el DELETE escriben secretos, así que exigen token ADMIN
+(`Authorization: Bearer <token>`): `401` sin token, `403` sin rol ADMIN. El GET
+queda **abierto** (devuelve valores enmascarados, no el texto plano).
+
 #### Listar variables (enmascaradas)
 
 ```
@@ -353,6 +373,10 @@ GET /api/v1/agents/{id}/environments/{env}/vars
 
 Valores enmascarados (primeros 4 caracteres + `***`). Sin variables: `{ "vars": {} }`.
 
+Si `ENVVARS_KEY` no coincide con la clave usada al cifrar (cambió, o se perdió la
+efímera tras un reinicio sin configurarla), el GET responde **`503`** con un
+`detail` que nombra `ENVVARS_KEY`, en vez de un `500` crudo.
+
 #### Guardar/actualizar variables (upsert, cifrado)
 
 ```
@@ -367,8 +391,8 @@ Content-Type: application/json
 ```
 
 Cada variable se guarda **cifrada con Fernet**; sobrescribe la combinación
-`(agent_id, env, nombre)` si ya existe. `env` inválido o `vars` que no sea
-objeto → `400`.
+`(agent_id, env, nombre)` si ya existe. Exige token ADMIN (`401`/`403`). `env`
+inválido o `vars` que no sea objeto → `400`.
 
 **Response** `200 OK`:
 
@@ -382,7 +406,8 @@ objeto → `400`.
 DELETE /api/v1/agents/{id}/environments/{env}/vars/{nombre}
 ```
 
-**Response** `200 OK`: `{ "ok": true }`. Variable inexistente → `404`.
+Exige token ADMIN (`401`/`403`). **Response** `200 OK`: `{ "ok": true }`.
+Variable inexistente → `404`.
 
 **Tipo TS (`src/servicios/ambientesServicio.ts`):**
 
@@ -394,6 +419,32 @@ interface VarsAmbiente {
 
 > **EC-02.5 (demo):** un `SELECT valor_cifrado FROM agent_env_vars` en vivo
 > devuelve un token Fernet (`gAAA...`), nunca el secreto en texto plano.
+
+---
+
+### Gobernanza — políticas del release gate
+
+El release gate que puede bloquear la promoción a prod con `409` (ver "Reglas del
+backend" arriba) se configura con políticas `tipo="release_gate"`. La superficie
+es nominalmente del módulo de Gobernanza; el gate se evalúa en el backend del
+Módulo 2 al promover a prod.
+
+```
+POST /api/v1/governance/policies      # crear política. Exige token ADMIN.
+GET  /api/v1/governance/policies       # listar (abierto)
+GET  /api/v1/governance/tenant/{id}    # listar por tenant (abierto)
+```
+
+- **`POST /policies`** exige token ADMIN (`Authorization: Bearer <token>`): `401`
+  sin token, `403` sin ADMIN. Política malformada (métrica/umbral/ventana) → `422`;
+  id duplicado → `409`. Una `release_gate` lleva `metrica="tasa_exito_despliegues"`,
+  `umbral` en `[0,1]` y `ventana` (últimos N despliegues; default 5).
+- Los `GET` quedan abiertos (listan configuración, no la cambian).
+- La ruta `GET /tenant/{id}/policies-vulnerable` es una **demo intencional de
+  pen-testing** del Módulo 4: NO filtra por tenant. No la consume el front.
+
+El frontend del Módulo 2 no llama a estos endpoints hoy (la UI de políticas es
+local); se documentan porque el gate que devuelve el `409` de promote vive aquí.
 
 ---
 

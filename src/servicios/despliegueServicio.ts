@@ -1,5 +1,6 @@
 import type { EventoDespliegue } from "../types/Despliegue";
 import type { Version } from "../types/Version";
+import { fetchConAuth } from "./authServicio";
 
 // Mismo contrato y estilo que agenteServicio.ts (fetch plano, sin librerías).
 const API_URL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000/api/v1";
@@ -41,7 +42,7 @@ function desplegarReal(
 
   (async () => {
     try {
-      const respuesta = await fetch(`${API_URL}/agents/${agentId}/deploy`, {
+      const respuesta = await fetchConAuth(`${API_URL}/agents/${agentId}/deploy`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -256,7 +257,7 @@ export async function ejecutarRollback(
     return { ok: true };
   }
 
-  const respuesta = await fetch(
+  const respuesta = await fetchConAuth(
     `${API_URL}/agents/${agentId}/rollback/${versionId}`,
     { method: "POST" }
   );
