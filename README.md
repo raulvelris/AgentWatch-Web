@@ -1,73 +1,85 @@
-# React + TypeScript + Vite
+# AgentWatch
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Plataforma para diseñar, gobernar, desplegar y observar agentes de IA dentro de
+una empresa. Proyecto del curso Arquitectura de Software (Universidad de Lima,
+Grupo 3, 2026).
 
-Currently, two official plugins are available:
+Este repositorio es el **frontend web**. El sistema completo son tres
+aplicaciones que se conectan a una misma API.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## El equipo (Grupo 3)
 
-## React Compiler
+El proyecto se plantea como una empresa: cada integrante lleva un rol de negocio y
+es dueño de un área técnica del sistema.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Integrante | Rol | Área del sistema |
+|---|---|---|
+| Gabriel Crisóstomo | CEO | Observabilidad, Audit Trail y Métricas de Negocio (RF17–RF20) |
+| Rodrigo Urquizo | CTO | Ejecución Serverless, Motor de Políticas y Costos (RF09–RF12) |
+| José Huari | CISO | Seguridad, Identidad y Multi-Tenant (RF13–RF16) |
+| Gerson León | Líder QA | Diseño, Configuración y Gobernanza de Agentes (RF01–RF04) |
+| Enzo Ordóñez | COO | Despliegue, Ambientes y CI/CD (RF05–RF08) |
+| Raúl Velazco | CFO | Cliente Móvil y Alertas Multicanal (RF21–RF24) |
 
-## Expanding the ESLint configuration
+## Arquitectura
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Tres repositorios, una sola API:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- **AgentWatch-Backend** — la API (FastAPI + SQLite/SQLAlchemy). Monta todos los
+  módulos en un proceso. Es el corazón del sistema.
+- **AgentWatch-Web** — este repo. React + TypeScript + Vite.
+- **AgentWatch-Mobile** — cliente móvil en Expo / React Native.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+La documentación de arquitectura (caso de negocio, requisitos, QAW, ADD, diagramas
+C4) vive aparte, en el repositorio `arqui261-grupo3`.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Qué hay en este frontend
+
+Dos páginas independientes:
+
+- **Estudio de agentes** (`index.html`): creación de agentes con un wizard,
+  plantillas, políticas de gobernanza, auditoría y vistas de observabilidad.
+- **Despliegue y CI/CD** (`despliegue.html`): despliegue con log en vivo (SSE),
+  historial de versiones con rollback, ambientes dev/staging/prod con promoción, y
+  variables de entorno cifradas por ambiente.
+
+Las acciones que cambian estado (desplegar, promover, guardar variables) exigen
+iniciar sesión. El backend valida un JWT y aplica control de acceso por rol
+(ADMIN / VIEWER): un ADMIN pasa, un VIEWER puede pedir promociones a staging pero
+no a prod, y no puede tocar secretos.
+
+## Cómo correrlo
+
+Requisitos: Node 20 o superior. Para el sistema completo, además el backend
+levantado.
+
+Frontend:
+
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Por defecto apunta al backend en `http://127.0.0.1:8000` (configurable con
+`VITE_API_URL`). Para probar sin backend, con datos simulados, poné
+`VITE_MODO_MOCK=true` en un archivo `.env`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Backend (en el repo `AgentWatch-Backend`):
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pip install -r requirements.txt
+uvicorn app.main:app --reload
 ```
+
+Con el backend arriba y `VITE_MODO_MOCK=false`, entrá a la página de despliegue,
+iniciá sesión con un usuario de demo (`admin_a` para ADMIN, `viewer_a` para
+VIEWER) y probá el ciclo completo: desplegar, versionar, promover a prod y guardar
+variables cifradas.
+
+## Estado del proyecto
+
+Es un prototipo académico. Varias piezas de infraestructura de producción están
+simuladas y marcadas como tal en la propia interfaz (badges `STUB`, pasos
+`SIMULADO`): el pipeline de despliegue real, Azure Key Vault (reemplazado por
+cifrado Fernet local), los namespaces de Kubernetes. Lo que está implementado
+funciona de punta a punta y tiene pruebas automatizadas en el backend.
