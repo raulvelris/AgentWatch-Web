@@ -124,7 +124,7 @@ Si el cuerpo no trae `versions` como array, el frontend degrada a lista vacía
 **Tipo TS (`src/types/Version.ts`)** — snake_case para calzar con el JSON del backend:
 
 ```ts
-type EstadoVersion = "activa" | "inactiva" | "rollback";
+type EstadoVersion = "activa" | "inactiva" | "rollback" | "fallida";
 
 interface Version {
   id: string;
@@ -135,6 +135,12 @@ interface Version {
   estado: EstadoVersion;
 }
 ```
+
+Una versión candidata cuyo deploy falla queda con estado `fallida` (el revert
+automático de RF05 marca la candidata como `fallida` y restaura la versión previa
+como vigente). Aparece en el historial que devuelve `GET /versions`, así que
+`HistorialVersiones` debe contemplar ese estado además de
+`activa`/`inactiva`/`rollback`.
 
 ---
 
@@ -199,6 +205,12 @@ body; con un token inválido devuelve `401`.
 
 - `ambiente_destino` no en `{dev, staging, prod}` → `400`
 - `ambiente_destino == "prod"` y rol ≠ `"ADMIN"` → `403` con `detail` en español
+- `ambiente_destino == "prod"` y el release gate de calidad no se cumple → `409`
+  con el motivo en `detail`. Aplica **incluso a un ADMIN**: la identidad es
+  válida, pero el agente no supera el umbral de una política `release_gate`
+  activa del tenant (tasa de éxito de sus últimos N despliegues). Sin políticas de
+  gate activas, este chequeo no interviene y el flujo es idéntico al anterior. El
+  frontend ya muestra el `detail` inline, así que no necesita cambios para el 409.
 - Rol `"ADMIN"` → `estado: "aprobada"`, `aprobado_por` = solicitante
 - Rol no-admin → `estado: "pendiente"`, encola notificación al ADMIN
 - Una promoción `aprobada` mueve la config del agente: copia (upsert) sus
