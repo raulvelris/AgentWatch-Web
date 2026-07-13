@@ -12,6 +12,7 @@ export interface Sesion {
   token: string;
   usuario: string;
   rol: string;
+  tenant: string;
 }
 
 export async function iniciarSesion(usuario: string): Promise<Sesion> {
@@ -27,10 +28,11 @@ export async function iniciarSesion(usuario: string): Promise<Sesion> {
     throw new Error(datos?.error ?? "Login sin token");
   }
   const sesion: Sesion = {
-    token: datos.token,
-    usuario: datos.usuario,
-    rol: datos.rol,
-  };
+  token: datos.token,
+  usuario: datos.usuario,
+  rol: datos.rol,
+  tenant: datos.tenant,
+};
   sessionStorage.setItem(CLAVE_SESION, JSON.stringify(sesion));
   return sesion;
 }

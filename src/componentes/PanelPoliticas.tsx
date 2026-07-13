@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { obtenerAgentes } from "../servicios/agenteServicio";
+import { obtenerSesion } from "../servicios/authServicio";
+import { crearPolitica } from "../servicios/politicasServicio";
 
 type PoliticaVersion = {
   id: string;
@@ -195,38 +197,76 @@ function PanelPoliticas() {
     setTraduccion(restriccion);
   };
 
-  const guardarPolitica = () => {
-    if (!politica.trim() || !traduccion.trim()) {
-      alert("Primero escribe y traduce una política.");
-      return;
-    }
+ const guardarPolitica = async () => {
+  if (!politica.trim() || !traduccion.trim()) {
+    alert("Primero escribe y traduce una política.");
+    return;
+  }
 
-    if (agentesSeleccionados.length === 0) {
-      alert("Selecciona al menos un agente para asignar la política.");
-      return;
-    }
+  if (agentesSeleccionados.length === 0) {
+    alert("Selecciona al menos un agente para asignar la política.");
+    return;
+  }
 
-    if (existeConflicto()) {
-      alert("Conflicto detectado: ya existe una política opuesta sobre el mismo tema.");
-      return;
-    }
+  if (existeConflicto()) {
+    alert(
+      "Conflicto detectado: ya existe una política opuesta sobre el mismo tema."
+    );
+    return;
+  }
+
+  const sesion = obtenerSesion();
+
+  if (!sesion) {
+    alert("Debes iniciar sesión como administrador antes de guardar.");
+    return;
+  }
+
+  if (sesion.rol !== "ADMIN") {
+    alert("Solo un usuario con rol ADMIN puede crear políticas.");
+    return;
+  }
+
+  try {
+    const idPolitica = crypto.randomUUID();
+
+    await crearPolitica({
+      id: idPolitica,
+      tenant_id: sesion.tenant,
+      nombre: politica.slice(0, 80),
+      descripcion: politica,
+      severidad: "media",
+      activa: true,
+      tipo: "informativa",
+      metrica: null,
+      umbral: null,
+      ventana: null,
+    });
 
     const nuevaVersion: PoliticaVersion = {
-      id: crypto.randomUUID(),
+      id: idPolitica,
       textoOriginal: politica,
       restriccionTecnica: traduccion,
       fecha: new Date().toLocaleString(),
       agentesAsignados: agentesSeleccionados,
     };
 
-    setVersiones([nuevaVersion, ...versiones]);
+    setVersiones((anteriores) => [nuevaVersion, ...anteriores]);
     setPolitica("");
     setTraduccion("");
     setAgentesSeleccionados([]);
 
-    alert("Política guardada y asignada correctamente.");
-  };
+    alert("Política guardada correctamente en el backend.");
+  } catch (error) {
+    console.error(error);
 
+    alert(
+      error instanceof Error
+        ? `No se pudo guardar la política: ${error.message}`
+        : "No se pudo guardar la política."
+    );
+  }
+};
   return (
     <div className="section-card">
       <h2>Editor de políticas</h2>

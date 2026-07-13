@@ -8,6 +8,7 @@ import PanelAuditoria from "./componentes/PanelAuditoria";
 import PanelMetricasNegocio from "./componentes/PanelMetricasNegocio";
 import ReplayEjecucion from "./componentes/ReplayEjecucion";
 import VistaPreviaAgente from "./componentes/VistaPreviaAgente";
+import ControlSesion from "./componentes/ControlSesion";
 
 import type { Agente } from "./types/Agente";
 
@@ -77,6 +78,7 @@ function App() {
         <BarraLateral activeMenu={activeMenu} setActiveMenu={setActiveMenu} />
 
         <main className="content">
+          <ControlSesion />
           <div className="topbar">
             <div>
               <div className="eyebrow">AgentWatch Studio</div>
