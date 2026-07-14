@@ -86,6 +86,17 @@ data: {"fase":"done","mensaje":"Despliegue fallido.","estado":"failed","version_
 `401` sin token, `403` si el rol no es ADMIN. El autor del despliegue sale del
 claim `sub` del token.
 
+**El agente debe existir.** El deploy usa la configuración real persistida del
+agente (tabla `agents`, `GET /api/v1/agents/`) para calcular el `hash_sha256`
+de la versión. Si el agente no existe, el backend responde **`404` JSON**
+(`{"detail": "No se encontró la configuración del agente"}`) **antes** de
+abrir el stream: no llegan frames SSE, no se crea versión candidata ni
+registro de despliegue. Con `?fallo=<fase>` inválida el `400` gana al `404`.
+Por eso la página de despliegue carga el selector de agentes desde
+`GET /api/v1/agents/` → `{"agents": [...]}` y persiste la selección en
+`localStorage["agentwatch_agente_despliegue"]` (el historial sobrevive a un
+Ctrl+R porque el id elegido es estable y existe de verdad).
+
 **Tipo TS (`src/types/Despliegue.ts`)**
 
 ```ts
@@ -167,9 +178,18 @@ POST /api/v1/agents/{id}/rollback/{versionId}
 
 **Response** `200 OK`, JSON: `{ "ok": true, "version": {...}, "rollback_a": "..." }`.
 
-Tras un rollback exitoso el frontend recarga `GET /versions`, por lo que el
-backend debe dejar la versión objetivo como `activa` y la anterior activa como
-`rollback` (o `inactiva`, según la política del backend).
+El rollback es **append-only** (RF07): no modifica ni borra versiones. Genera
+una versión NUEVA con `estado: "rollback"` que pasa a ser la vigente; la
+versión objetivo y el resto del historial quedan intactos (la vigente anterior
+pasa a `inactiva`).
+
+**Hash de la versión de rollback:** hereda el `hash_sha256` de la versión
+objetivo (`rollback_a`). La versión nueva documenta *a qué* configuración se
+volvió; el mismo hash visible en ambas filas del historial es el comportamiento
+esperado, no un bug. Nota de alcance: el rollback NO reescribe la configuración
+guardada del agente (tabla `agents`, dominio del Módulo 1).
+
+Tras un rollback exitoso el frontend recarga `GET /versions`.
 
 ---
 
@@ -470,7 +490,7 @@ git). Los 4 archivos existen y son YAML válido:
 
 | Archivo | Disparador | Estado |
 |---|---|---|
-| `ci.yml` | PR y push a `develop` | lint (ruff) + tests + Semgrep + docker build — **pasos REALES** |
+| `ci.yml` | PR y push a `develop`/`main` | lint (ruff) + tests + Semgrep + docker build — **pasos REALES** |
 | `deploy-staging.yml` | Push a `develop` | docker build real; deploy Azure **SIMULADO** (`echo`) |
 | `deploy-prod-canary.yml` | `workflow_dispatch` o tag `v*` | canary 10→50→100% **SIMULADO** (`echo`) |
 | `demo-pipeline.yml` | `workflow_dispatch` (manual) | lint + tests — **REAL**, solo para demo grabada |
