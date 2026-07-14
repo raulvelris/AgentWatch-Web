@@ -149,10 +149,14 @@ function PanelDespliegue() {
 
       {/* key={agentId}: al elegir otro agente, los paneles se remontan con
           estado limpio (sin versiones ni despliegues stale del anterior). */}
+      {/* Las keys llevan prefijo porque son HERMANOS: dos hijos con la misma
+          key (antes los tres usaban key={agentId}) hacen que React duplique u
+          omita nodos al cambiar de agente ("Encountered two children with the
+          same key", reproducido en el E2E). */}
       {agentId && (
         <>
           <RegistroDespliegue
-            key={agentId}
+            key={`reg:${agentId}`}
             agentId={agentId}
             onDespliegueTerminado={() => setRefrescoVersiones((v) => v + 1)}
           />
@@ -162,11 +166,11 @@ function PanelDespliegue() {
               'fallida' que vale mostrar). PanelAmbientes queda afuera para no
               perder el estado de sus formularios. */}
           <HistorialVersiones
-            key={`${agentId}:${refrescoVersiones}`}
+            key={`hist:${agentId}:${refrescoVersiones}`}
             agentId={agentId}
           />
 
-          <PanelAmbientes key={agentId} agentId={agentId} />
+          <PanelAmbientes key={`amb:${agentId}`} agentId={agentId} />
         </>
       )}
     </div>
