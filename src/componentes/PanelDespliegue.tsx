@@ -41,6 +41,9 @@ function PanelDespliegue() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reintento, setReintento] = useState(0);
+  // Cada despliegue terminado (éxito o fallo) incrementa el contador y
+  // remonta el historial: la versión nueva aparece sin recargar la página.
+  const [refrescoVersiones, setRefrescoVersiones] = useState(0);
 
   // Carga de la lista real de agentes. El setState va en los callbacks
   // .then/.catch, no en el cuerpo del efecto (react-hooks/set-state-in-effect).
@@ -148,9 +151,20 @@ function PanelDespliegue() {
           estado limpio (sin versiones ni despliegues stale del anterior). */}
       {agentId && (
         <>
-          <RegistroDespliegue key={agentId} agentId={agentId} />
+          <RegistroDespliegue
+            key={agentId}
+            agentId={agentId}
+            onDespliegueTerminado={() => setRefrescoVersiones((v) => v + 1)}
+          />
 
-          <HistorialVersiones key={agentId} agentId={agentId} />
+          {/* La key incluye el contador: al terminar un deploy el historial se
+              remonta y refetchea (un deploy fallido también deja una versión
+              'fallida' que vale mostrar). PanelAmbientes queda afuera para no
+              perder el estado de sus formularios. */}
+          <HistorialVersiones
+            key={`${agentId}:${refrescoVersiones}`}
+            agentId={agentId}
+          />
 
           <PanelAmbientes key={agentId} agentId={agentId} />
         </>

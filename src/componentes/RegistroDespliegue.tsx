@@ -4,6 +4,9 @@ import type { EventoDespliegue, FaseDespliegue } from "../types/Despliegue";
 
 type Props = {
   agentId: string;
+  // Avisa al panel padre que el despliegue terminó (éxito, fallo o error de
+  // conexión) para que refresque el historial de versiones.
+  onDespliegueTerminado?: () => void;
 };
 
 type LineaLog = {
@@ -12,7 +15,7 @@ type LineaLog = {
   hora: string;
 };
 
-function RegistroDespliegue({ agentId }: Props) {
+function RegistroDespliegue({ agentId, onDespliegueTerminado }: Props) {
   const [lineas, setLineas] = useState<LineaLog[]>([]);
   const [desplegando, setDesplegando] = useState(false);
   const [resultado, setResultado] = useState<EventoDespliegue | null>(null);
@@ -75,9 +78,11 @@ function RegistroDespliegue({ agentId }: Props) {
       onError: (mensaje) => {
         setError(mensaje);
         setDesplegando(false);
+        onDespliegueTerminado?.();
       },
       onFin: () => {
         setDesplegando(false);
+        onDespliegueTerminado?.();
       },
     });
   };
