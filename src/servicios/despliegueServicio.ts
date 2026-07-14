@@ -1,5 +1,6 @@
 import type { AgenteResumen, EventoDespliegue } from "../types/Despliegue";
 import type { Version } from "../types/Version";
+import { extraerDetalle } from "./apiErrores";
 import { fetchConAuth } from "./authServicio";
 
 // Mismo contrato y estilo que agenteServicio.ts (fetch plano, sin librerías).
@@ -92,8 +93,13 @@ function desplegarReal(
         signal: controlador.signal,
       });
 
-      if (!respuesta.ok || !respuesta.body) {
-        throw new Error(`El backend respondió ${respuesta.status}`);
+      if (!respuesta.ok) {
+        // El backend manda el motivo en `detail` (401 sin token, 403 sin rol
+        // ADMIN, 404 si el agente no existe): se muestra tal cual.
+        throw new Error(await extraerDetalle(respuesta));
+      }
+      if (!respuesta.body) {
+        throw new Error("El backend no devolvió un stream de despliegue.");
       }
 
       const lector = respuesta.body.getReader();
@@ -274,7 +280,9 @@ export async function obtenerVersiones(agentId: string): Promise<Version[]> {
   const respuesta = await fetch(`${API_URL}/agents/${agentId}/versions`);
 
   if (!respuesta.ok) {
-    throw new Error("Error al obtener las versiones del agente");
+    throw new Error(
+      await extraerDetalle(respuesta, "Error al obtener las versiones del agente")
+    );
   }
 
   const datos = await respuesta.json();
@@ -306,7 +314,10 @@ export async function ejecutarRollback(
   );
 
   if (!respuesta.ok) {
-    throw new Error("Error al ejecutar el rollback");
+    // Propaga el motivo real (401/403 de auth, 404 versión inexistente).
+    throw new Error(
+      await extraerDetalle(respuesta, "Error al ejecutar el rollback")
+    );
   }
 
   return respuesta.json();

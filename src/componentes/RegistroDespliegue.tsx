@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { desplegarAgente } from "../servicios/despliegueServicio";
+import { obtenerSesion } from "../servicios/authServicio";
+import { desplegarAgente, MODO_MOCK } from "../servicios/despliegueServicio";
 import type { EventoDespliegue, FaseDespliegue } from "../types/Despliegue";
 
 type Props = {
@@ -46,6 +47,15 @@ function RegistroDespliegue({ agentId, onDespliegueTerminado }: Props) {
   const iniciarDespliegue = () => {
     if (!agentId.trim()) {
       setError("Falta el ID del agente para desplegar.");
+      return;
+    }
+
+    // Corte en el cliente: el deploy exige token ADMIN. Sin sesión, se avisa
+    // acá mismo en vez de disparar un request que va a dar 401.
+    if (!MODO_MOCK && !obtenerSesion()) {
+      setError(
+        "Sin sesión activa: entra como admin_a (ADMIN) en la barra superior para desplegar."
+      );
       return;
     }
 
