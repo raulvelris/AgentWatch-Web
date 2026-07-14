@@ -24,3 +24,12 @@ export interface EventoDespliegue {
   salud?: EstadoSalud;
   estado?: EstadoDespliegue;
 }
+
+// Resumen de un agente real del backend (GET /agents/) para el selector de la
+// página de despliegue. El deploy exige que el agente exista en el backend;
+// los campos completos del agente son del Módulo 1.
+export interface AgenteResumen {
+  id: string;
+  nombre: string;
+  estado: string;
+}

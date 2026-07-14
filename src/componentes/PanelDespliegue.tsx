@@ -1,27 +1,85 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import RegistroDespliegue from "./RegistroDespliegue";
 import HistorialVersiones from "./HistorialVersiones";
 import PanelAmbientes from "./PanelAmbientes";
-import { MODO_MOCK } from "../servicios/despliegueServicio";
+import { listarAgentes, MODO_MOCK } from "../servicios/despliegueServicio";
+import type { AgenteResumen } from "../types/Despliegue";
 import "../estilos/Despliegue.css";
 
-type Props = {
-  // Id del agente en construcción (App). Sirve de valor por defecto editable.
-  defaultAgentId: string;
-};
+// Clave estable donde la página guarda el agente elegido. Antes el id venía
+// de un UUID aleatorio por recarga (agentwatch_draft_agent o crypto.randomUUID)
+// y el historial "desaparecía" tras un Ctrl+R: el deploy apuntaba a un agente
+// que no existía en el backend.
+const CLAVE_AGENTE = "agentwatch_agente_despliegue";
 
-function PanelDespliegue({ defaultAgentId }: Props) {
-  // `borrador` es lo que se escribe; `agentId` es el id confirmado (Enter/blur).
-  // Confirmar en vez de actualizar por tecla evita recargar el historial en cada
-  // pulsación y permite remontar los paneles con key para un estado limpio.
-  const [borrador, setBorrador] = useState(defaultAgentId);
-  const [agentId, setAgentId] = useState(defaultAgentId);
+// Puente con el wizard del M1: si el usuario acaba de crear un agente, su id
+// queda en agentwatch_draft_agent y se preselecciona, pero SOLO si existe de
+// verdad en la lista del backend.
+function leerIdBorradorM1(): string | null {
+  try {
+    const bruto = localStorage.getItem("agentwatch_draft_agent");
+    if (!bruto) return null;
+    const id = (JSON.parse(bruto) as { id?: unknown }).id;
+    return typeof id === "string" && id.trim() ? id : null;
+  } catch {
+    return null;
+  }
+}
 
-  const aplicarAgente = () => {
-    const limpio = borrador.trim();
-    if (limpio && limpio !== agentId) {
-      setAgentId(limpio);
-    }
+function resolverPreferido(agentes: AgenteResumen[]): string {
+  const ids = new Set(agentes.map((a) => a.id));
+  const guardado = localStorage.getItem(CLAVE_AGENTE);
+  if (guardado && ids.has(guardado)) return guardado;
+  const borrador = leerIdBorradorM1();
+  if (borrador && ids.has(borrador)) return borrador;
+  return agentes[0]?.id ?? "";
+}
+
+function PanelDespliegue() {
+  const [agentes, setAgentes] = useState<AgenteResumen[]>([]);
+  const [agentId, setAgentId] = useState("");
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reintento, setReintento] = useState(0);
+
+  // Carga de la lista real de agentes. El setState va en los callbacks
+  // .then/.catch, no en el cuerpo del efecto (react-hooks/set-state-in-effect).
+  useEffect(() => {
+    let ignorar = false;
+    listarAgentes()
+      .then((lista) => {
+        if (ignorar) return;
+        setAgentes(lista);
+        setError(null);
+        const preferido = resolverPreferido(lista);
+        setAgentId(preferido);
+        if (preferido) {
+          localStorage.setItem(CLAVE_AGENTE, preferido);
+        }
+      })
+      .catch((e: unknown) => {
+        if (ignorar) return;
+        setError(
+          e instanceof Error ? e.message : "No se pudo cargar la lista de agentes."
+        );
+      })
+      .finally(() => {
+        if (!ignorar) setCargando(false);
+      });
+    return () => {
+      ignorar = true;
+    };
+  }, [reintento]);
+
+  const reintentar = () => {
+    setCargando(true);
+    setError(null);
+    setReintento((v) => v + 1);
+  };
+
+  const elegirAgente = (id: string) => {
+    setAgentId(id);
+    localStorage.setItem(CLAVE_AGENTE, id);
   };
 
   return (
@@ -46,31 +104,57 @@ function PanelDespliegue({ defaultAgentId }: Props) {
           </div>
         )}
 
-        <label>ID del agente</label>
-        <input
-          type="text"
-          value={borrador}
-          onChange={(e) => setBorrador(e.target.value)}
-          onBlur={aplicarAgente}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              aplicarAgente();
-            }
-          }}
-          placeholder="UUID del agente a desplegar"
-        />
-        <p style={{ marginTop: "8px", color: "#94a3b8", fontSize: "13px" }}>
-          Pulsa Enter o sal del campo para cargar ese agente.
-        </p>
+        <label>Agente</label>
+        {cargando ? (
+          <p>Cargando agentes...</p>
+        ) : error ? (
+          <div className="error-box">
+            <strong>No se pudo cargar la lista de agentes.</strong>
+            <p style={{ margin: "8px 0 0" }}>{error}</p>
+            <div style={{ marginTop: "12px" }}>
+              <button className="secondary" onClick={reintentar}>
+                Reintentar
+              </button>
+            </div>
+          </div>
+        ) : agentes.length === 0 ? (
+          <div className="preview-box">
+            <p>
+              No hay agentes registrados en el backend. Crea uno en el wizard
+              (Módulo 1) y vuelve a esta página.
+            </p>
+          </div>
+        ) : (
+          <>
+            <select
+              value={agentId}
+              onChange={(e) => elegirAgente(e.target.value)}
+            >
+              {agentes.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.nombre} ({a.estado})
+                </option>
+              ))}
+            </select>
+            <p style={{ marginTop: "8px", color: "#94a3b8", fontSize: "13px" }}>
+              La selección se guarda en este navegador: el historial sigue ahí
+              después de recargar la página.
+            </p>
+          </>
+        )}
       </div>
 
-      {/* key={agentId}: al confirmar otro agente, los paneles se remontan con
+      {/* key={agentId}: al elegir otro agente, los paneles se remontan con
           estado limpio (sin versiones ni despliegues stale del anterior). */}
-      <RegistroDespliegue key={agentId} agentId={agentId} />
+      {agentId && (
+        <>
+          <RegistroDespliegue key={agentId} agentId={agentId} />
 
-      <HistorialVersiones key={agentId} agentId={agentId} />
+          <HistorialVersiones key={agentId} agentId={agentId} />
 
-      <PanelAmbientes key={agentId} agentId={agentId} />
+          <PanelAmbientes key={agentId} agentId={agentId} />
+        </>
+      )}
     </div>
   );
 }

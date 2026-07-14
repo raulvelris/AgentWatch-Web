@@ -9,34 +9,17 @@ import PanelDespliegue from "./componentes/PanelDespliegue";
 // ./index.css para heredar la paleta del repo; Despliegue.css llega vía
 // PanelDespliegue.
 
-// TODO (OPCIÓN B — ELIMINAR cuando se coordine con Gerson/M1):
-// Puente temporal para la demo: tomamos el id del agente en construcción desde
-// localStorage (clave que escribe el WizardAgente del M1). Lo correcto sería que
-// el Wizard navegue a /despliegue.html?agentId={id} y aquí leamos ese query param
-// con new URLSearchParams(window.location.search), borrando esta lectura.
-// Nota: el id guardado es el UUID generado en el cliente (App.tsx), no
-// necesariamente el id del backend; ver pendiente en el resumen de la tarea.
-function leerIdAgenteGuardado(): string {
-  try {
-    const bruto = localStorage.getItem("agentwatch_draft_agent");
-    if (bruto) {
-      const id = (JSON.parse(bruto) as { id?: unknown }).id;
-      if (typeof id === "string" && id.trim()) {
-        return id;
-      }
-    }
-  } catch {
-    // localStorage bloqueado o JSON corrupto: caemos al UUID aleatorio.
-  }
-  return crypto.randomUUID();
-}
+// El agente a desplegar ya no llega por prop: PanelDespliegue carga la lista
+// real del backend (GET /agents/) y persiste la selección en localStorage.
+// El puente con el wizard del M1 (agentwatch_draft_agent) vive allí y solo
+// aplica si ese agente existe de verdad en el backend.
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <div className="page">
       <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
         <ControlSesion />
-        <PanelDespliegue defaultAgentId={leerIdAgenteGuardado()} />
+        <PanelDespliegue />
       </div>
     </div>
   </StrictMode>
