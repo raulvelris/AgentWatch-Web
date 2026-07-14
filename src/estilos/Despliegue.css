@@ -114,6 +114,10 @@
   border-left-color: #f59e0b;
 }
 
+.timeline-item.fallida {
+  border-left-color: #ef4444;
+}
+
 .hash {
   font-family: "Courier New", monospace;
   font-size: 12px;

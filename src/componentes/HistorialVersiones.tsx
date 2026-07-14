@@ -16,6 +16,9 @@ function etiquetaEstado(estado: Version["estado"]) {
   if (estado === "rollback") {
     return "pill pill-info";
   }
+  if (estado === "fallida") {
+    return "pill pill-bad";
+  }
   return "pill";
 }
 

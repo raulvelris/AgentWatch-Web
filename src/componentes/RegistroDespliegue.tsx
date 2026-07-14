@@ -13,6 +13,10 @@ type LineaLog = {
   fase: FaseDespliegue;
   mensaje: string;
   hora: string;
+  // El backend real marca el fallo con {fase: "<la que falló>", estado:
+  // "error"}, no con fase "error"; se calcula al recibir el frame para que
+  // la línea se pinte en rojo en los dos casos.
+  esError: boolean;
 };
 
 function RegistroDespliegue({ agentId, onDespliegueTerminado }: Props) {
@@ -58,6 +62,7 @@ function RegistroDespliegue({ agentId, onDespliegueTerminado }: Props) {
             fase: evento.fase,
             mensaje: evento.mensaje,
             hora: new Date().toLocaleTimeString(),
+            esError: evento.fase === "error" || evento.estado === "error",
           },
         ]);
 
@@ -116,9 +121,7 @@ function RegistroDespliegue({ agentId, onDespliegueTerminado }: Props) {
             lineas.map((linea, indice) => (
               <div
                 key={indice}
-                className={
-                  linea.fase === "error" ? "log-line fase-error" : "log-line"
-                }
+                className={linea.esError ? "log-line fase-error" : "log-line"}
               >
                 <span className="log-hora">{linea.hora}</span>
                 <span className="log-fase">{linea.fase}</span>
