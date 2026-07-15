@@ -1,5 +1,6 @@
-import type { EventoDespliegue } from "../types/Despliegue";
+import type { AgenteResumen, EventoDespliegue } from "../types/Despliegue";
 import type { Version } from "../types/Version";
+import { extraerDetalle } from "./apiErrores";
 import { fetchConAuth } from "./authServicio";
 
 // Mismo contrato y estilo que agenteServicio.ts (fetch plano, sin librerías).
@@ -15,6 +16,49 @@ export interface ManejadoresDespliegue {
   onEvento: (evento: EventoDespliegue) => void;
   onError: (mensaje: string) => void;
   onFin: () => void;
+}
+
+// ---------------------------------------------------------------------------
+// Selector de agentes: el deploy exige que el agente exista en el backend
+// (tabla `agents`), así que la página carga la lista real en vez de aceptar
+// un id tipeado que puede no existir.
+// ---------------------------------------------------------------------------
+
+// Réplica de los 2 agentes demo que siembra el backend al arrancar.
+const AGENTES_MOCK: AgenteResumen[] = [
+  {
+    id: "12345678-1234-5678-1234-567812345678",
+    nombre: "Soporte Nivel 1",
+    estado: "ACTIVE",
+  },
+  {
+    id: "87654321-4321-8765-4321-876543210987",
+    nombre: "Analista de Datos",
+    estado: "PAUSED",
+  },
+];
+
+export async function listarAgentes(): Promise<AgenteResumen[]> {
+  if (MODO_MOCK) {
+    return [...AGENTES_MOCK];
+  }
+
+  const respuesta = await fetch(`${API_URL}/agents/`);
+  if (!respuesta.ok) {
+    throw new Error("No se pudo cargar la lista de agentes.");
+  }
+
+  const datos = await respuesta.json();
+  if (!Array.isArray(datos?.agents)) {
+    return [];
+  }
+  return (datos.agents as Array<Record<string, unknown>>)
+    .filter((a) => typeof a?.id === "string")
+    .map((a) => ({
+      id: a.id as string,
+      nombre: typeof a.nombre === "string" ? a.nombre : (a.id as string),
+      estado: typeof a.estado === "string" ? a.estado : "",
+    }));
 }
 
 // ---------------------------------------------------------------------------
@@ -49,8 +93,13 @@ function desplegarReal(
         signal: controlador.signal,
       });
 
-      if (!respuesta.ok || !respuesta.body) {
-        throw new Error(`El backend respondió ${respuesta.status}`);
+      if (!respuesta.ok) {
+        // El backend manda el motivo en `detail` (401 sin token, 403 sin rol
+        // ADMIN, 404 si el agente no existe): se muestra tal cual.
+        throw new Error(await extraerDetalle(respuesta));
+      }
+      if (!respuesta.body) {
+        throw new Error("El backend no devolvió un stream de despliegue.");
       }
 
       const lector = respuesta.body.getReader();
@@ -231,7 +280,9 @@ export async function obtenerVersiones(agentId: string): Promise<Version[]> {
   const respuesta = await fetch(`${API_URL}/agents/${agentId}/versions`);
 
   if (!respuesta.ok) {
-    throw new Error("Error al obtener las versiones del agente");
+    throw new Error(
+      await extraerDetalle(respuesta, "Error al obtener las versiones del agente")
+    );
   }
 
   const datos = await respuesta.json();
@@ -263,7 +314,10 @@ export async function ejecutarRollback(
   );
 
   if (!respuesta.ok) {
-    throw new Error("Error al ejecutar el rollback");
+    // Propaga el motivo real (401/403 de auth, 404 versión inexistente).
+    throw new Error(
+      await extraerDetalle(respuesta, "Error al ejecutar el rollback")
+    );
   }
 
   return respuesta.json();

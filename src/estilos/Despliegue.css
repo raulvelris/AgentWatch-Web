@@ -95,12 +95,27 @@
   padding: 18px;
 }
 
+/* Selector de agentes (misma estética que los inputs del panel). */
+.section-card select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 14px;
+}
+
 .timeline-item.activa {
   border-left-color: #22c55e;
 }
 
 .timeline-item.rollback {
   border-left-color: #f59e0b;
+}
+
+.timeline-item.fallida {
+  border-left-color: #ef4444;
 }
 
 .hash {

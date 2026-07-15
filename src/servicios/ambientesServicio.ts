@@ -1,3 +1,4 @@
+import { extraerDetalle } from "./apiErrores";
 import { fetchConAuth } from "./authServicio";
 import { MODO_MOCK } from "./despliegueServicio";
 import type {
@@ -43,17 +44,8 @@ export async function solicitarPromocion(
 
   if (!respuesta.ok) {
     // El backend manda el motivo en `detail` (p. ej. 403 a prod sin ADMIN,
-    // 400 ambiente inválido); lo propagamos para mostrarlo inline.
-    let detalle = `El backend respondió ${respuesta.status}`;
-    try {
-      const error = await respuesta.json();
-      if (typeof error?.detail === "string") {
-        detalle = error.detail;
-      }
-    } catch {
-      // Respuesta sin cuerpo JSON: se queda el mensaje por defecto.
-    }
-    throw new Error(detalle);
+    // 400 ambiente inválido, 409 del release gate); se muestra inline.
+    throw new Error(await extraerDetalle(respuesta));
   }
 
   const datos = await respuesta.json();
@@ -192,7 +184,11 @@ export async function listarVarsAmbiente(
     `${API_URL}/agents/${agentId}/environments/${env}/vars`
   );
   if (!respuesta.ok) {
-    throw new Error(`No se pudieron cargar las variables de ${env}.`);
+    // El 503 de ENVVARS_KEY trae en `detail` la explicación y el remedio;
+    // antes se tapaba con un mensaje genérico.
+    throw new Error(
+      await extraerDetalle(respuesta, `No se pudieron cargar las variables de ${env}.`)
+    );
   }
   const datos = await respuesta.json();
   return datos?.vars && typeof datos.vars === "object" ? datos.vars : {};
@@ -216,16 +212,7 @@ export async function guardarVarsAmbiente(
   );
   if (!respuesta.ok) {
     // Mismo manejo que solicitarPromocion: el backend manda el motivo en `detail`.
-    let detalle = `El backend respondió ${respuesta.status}`;
-    try {
-      const error = await respuesta.json();
-      if (typeof error?.detail === "string") {
-        detalle = error.detail;
-      }
-    } catch {
-      // Respuesta sin cuerpo JSON: se queda el mensaje por defecto.
-    }
-    throw new Error(detalle);
+    throw new Error(await extraerDetalle(respuesta));
   }
 }
 
@@ -244,6 +231,9 @@ export async function eliminarVarAmbiente(
     { method: "DELETE" }
   );
   if (!respuesta.ok) {
-    throw new Error(`No se pudo eliminar la variable ${nombre}.`);
+    // Propaga el motivo real (401 sin token, 403 sin rol ADMIN, 404).
+    throw new Error(
+      await extraerDetalle(respuesta, `No se pudo eliminar la variable ${nombre}.`)
+    );
   }
 }

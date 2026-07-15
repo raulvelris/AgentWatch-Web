@@ -1,18 +1,26 @@
 import { useEffect, useRef, useState } from "react";
-import { desplegarAgente } from "../servicios/despliegueServicio";
+import { obtenerSesion } from "../servicios/authServicio";
+import { desplegarAgente, MODO_MOCK } from "../servicios/despliegueServicio";
 import type { EventoDespliegue, FaseDespliegue } from "../types/Despliegue";
 
 type Props = {
   agentId: string;
+  // Avisa al panel padre que el despliegue terminó (éxito, fallo o error de
+  // conexión) para que refresque el historial de versiones.
+  onDespliegueTerminado?: () => void;
 };
 
 type LineaLog = {
   fase: FaseDespliegue;
   mensaje: string;
   hora: string;
+  // El backend real marca el fallo con {fase: "<la que falló>", estado:
+  // "error"}, no con fase "error"; se calcula al recibir el frame para que
+  // la línea se pinte en rojo en los dos casos.
+  esError: boolean;
 };
 
-function RegistroDespliegue({ agentId }: Props) {
+function RegistroDespliegue({ agentId, onDespliegueTerminado }: Props) {
   const [lineas, setLineas] = useState<LineaLog[]>([]);
   const [desplegando, setDesplegando] = useState(false);
   const [resultado, setResultado] = useState<EventoDespliegue | null>(null);
@@ -42,6 +50,15 @@ function RegistroDespliegue({ agentId }: Props) {
       return;
     }
 
+    // Corte en el cliente: el deploy exige token ADMIN. Sin sesión, se avisa
+    // acá mismo en vez de disparar un request que va a dar 401.
+    if (!MODO_MOCK && !obtenerSesion()) {
+      setError(
+        "Sin sesión activa: entra como admin_a (ADMIN) en la barra superior para desplegar."
+      );
+      return;
+    }
+
     setLineas([]);
     setResultado(null);
     setError(null);
@@ -55,6 +72,7 @@ function RegistroDespliegue({ agentId }: Props) {
             fase: evento.fase,
             mensaje: evento.mensaje,
             hora: new Date().toLocaleTimeString(),
+            esError: evento.fase === "error" || evento.estado === "error",
           },
         ]);
 
@@ -75,9 +93,11 @@ function RegistroDespliegue({ agentId }: Props) {
       onError: (mensaje) => {
         setError(mensaje);
         setDesplegando(false);
+        onDespliegueTerminado?.();
       },
       onFin: () => {
         setDesplegando(false);
+        onDespliegueTerminado?.();
       },
     });
   };
@@ -111,9 +131,7 @@ function RegistroDespliegue({ agentId }: Props) {
             lineas.map((linea, indice) => (
               <div
                 key={indice}
-                className={
-                  linea.fase === "error" ? "log-line fase-error" : "log-line"
-                }
+                className={linea.esError ? "log-line fase-error" : "log-line"}
               >
                 <span className="log-hora">{linea.hora}</span>
                 <span className="log-fase">{linea.fase}</span>

@@ -8,12 +8,16 @@ export type FaseDespliegue =
   | "push"
   | "deploy"
   | "healthcheck"
+  // "revert": el deploy falló y el backend restauró la versión previa (RF05).
+  | "revert"
   | "done"
   | "error";
 
 export type EstadoSalud = "healthy" | "unhealthy";
 
-export type EstadoDespliegue = "success" | "failed";
+// "error" llega en el frame de la fase que falló ({fase: "healthcheck",
+// estado: "error"}); "failed" llega en el frame done de un deploy fallido.
+export type EstadoDespliegue = "success" | "failed" | "error";
 
 export interface EventoDespliegue {
   fase: FaseDespliegue;
@@ -23,4 +27,13 @@ export interface EventoDespliegue {
   url?: string;
   salud?: EstadoSalud;
   estado?: EstadoDespliegue;
+}
+
+// Resumen de un agente real del backend (GET /agents/) para el selector de la
+// página de despliegue. El deploy exige que el agente exista en el backend;
+// los campos completos del agente son del Módulo 1.
+export interface AgenteResumen {
+  id: string;
+  nombre: string;
+  estado: string;
 }

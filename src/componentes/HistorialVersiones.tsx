@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import { obtenerSesion } from "../servicios/authServicio";
 import {
   ejecutarRollback,
+  MODO_MOCK,
   obtenerVersiones,
 } from "../servicios/despliegueServicio";
 import type { Version } from "../types/Version";
@@ -15,6 +17,9 @@ function etiquetaEstado(estado: Version["estado"]) {
   }
   if (estado === "rollback") {
     return "pill pill-info";
+  }
+  if (estado === "fallida") {
+    return "pill pill-bad";
   }
   return "pill";
 }
@@ -77,6 +82,15 @@ function HistorialVersiones({ agentId }: Props) {
   };
 
   const confirmarRollback = async (version: Version) => {
+    // Corte en el cliente: el rollback exige token ADMIN. Sin sesión se avisa
+    // acá en vez de disparar un request que va a dar 401.
+    if (!MODO_MOCK && !obtenerSesion()) {
+      setConfirmando(null);
+      setError(
+        "Sin sesión activa: entra como admin_a (ADMIN) en la barra superior para hacer rollback."
+      );
+      return;
+    }
     setRollbackId(version.id);
     setError(null);
     try {
