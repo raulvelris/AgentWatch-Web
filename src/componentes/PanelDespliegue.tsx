@@ -161,13 +161,14 @@ function PanelDespliegue() {
             onDespliegueTerminado={() => setRefrescoVersiones((v) => v + 1)}
           />
 
-          {/* La key incluye el contador: al terminar un deploy el historial se
-              remonta y refetchea (un deploy fallido también deja una versión
-              'fallida' que vale mostrar). PanelAmbientes queda afuera para no
-              perder el estado de sus formularios. */}
+          {/* El contador viaja como prop (no en la key): remontar el historial
+              destruiría un modal de rollback en vuelo. El efecto de carga lo
+              tiene como dependencia y refetchea sin perder estado (un deploy
+              fallido también deja una versión 'fallida' que vale mostrar). */}
           <HistorialVersiones
-            key={`hist:${agentId}:${refrescoVersiones}`}
+            key={`hist:${agentId}`}
             agentId={agentId}
+            refresco={refrescoVersiones}
           />
 
           <PanelAmbientes key={`amb:${agentId}`} agentId={agentId} />

@@ -9,7 +9,18 @@ import type { Version } from "../types/Version";
 
 type Props = {
   agentId: string;
+  // Contador de refresh del panel padre: cada deploy terminado lo sube y el
+  // efecto de carga refetchea SIN remontar el componente (un remount por key
+  // destruiría un modal de rollback en vuelo).
+  refresco?: number;
 };
+
+// Vigente para el backend es "activa" O "rollback" (versions.py filtra ambas):
+// tras un rollback real, la versión vigente tiene estado "rollback" y hacer
+// rollback sobre ella solo crearía una versión duplicada inútil.
+function esVigente(estado: Version["estado"]): boolean {
+  return estado === "activa" || estado === "rollback";
+}
 
 function etiquetaEstado(estado: Version["estado"]) {
   if (estado === "activa") {
@@ -24,7 +35,7 @@ function etiquetaEstado(estado: Version["estado"]) {
   return "pill";
 }
 
-function HistorialVersiones({ agentId }: Props) {
+function HistorialVersiones({ agentId, refresco = 0 }: Props) {
   const [versiones, setVersiones] = useState<Version[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,8 +59,9 @@ function HistorialVersiones({ agentId }: Props) {
     }
   }, [agentId]);
 
-  // Carga inicial / al cambiar de agente. El setState va dentro de los callbacks
-  // .then/.catch (asíncronos), no en el cuerpo síncrono del efecto, para cumplir
+  // Carga inicial, al cambiar de agente y al subir `refresco` (deploy recién
+  // terminado). El setState va dentro de los callbacks .then/.catch
+  // (asíncronos), no en el cuerpo síncrono del efecto, para cumplir
   // react-hooks/set-state-in-effect.
   useEffect(() => {
     let ignorar = false;
@@ -73,7 +85,7 @@ function HistorialVersiones({ agentId }: Props) {
     return () => {
       ignorar = true;
     };
-  }, [agentId]);
+  }, [agentId, refresco]);
 
   const reintentar = () => {
     setCargando(true);
@@ -98,6 +110,9 @@ function HistorialVersiones({ agentId }: Props) {
       setConfirmando(null);
       await recargar();
     } catch (e) {
+      // El modal se cierra también al fallar: su overlay taparía el error-box
+      // y el usuario no vería el motivo (401/403/404 del backend).
+      setConfirmando(null);
       setError(
         e instanceof Error ? e.message : "No se pudo ejecutar el rollback."
       );
@@ -172,13 +187,13 @@ function HistorialVersiones({ agentId }: Props) {
                   <button
                     className="secondary"
                     onClick={() => setConfirmando(version)}
-                    disabled={
-                      version.estado === "activa" || rollbackId !== null
-                    }
+                    disabled={esVigente(version.estado) || rollbackId !== null}
                   >
-                    {version.estado === "activa"
-                      ? "Versión activa"
-                      : "Rollback a esta versión"}
+                    {!esVigente(version.estado)
+                      ? "Rollback a esta versión"
+                      : version.estado === "activa"
+                        ? "Versión activa"
+                        : "Versión vigente"}
                   </button>
                 </div>
               </div>
@@ -194,7 +209,8 @@ function HistorialVersiones({ agentId }: Props) {
             <p>
               Vas a revertir el agente a la <strong>versión{" "}
               {confirmando.numero}</strong> ({confirmando.fecha}). La versión
-              activa actual quedará marcada como rollback.
+              vigente pasa a inactiva y se crea una versión nueva marcada como
+              rollback, con el hash de la versión objetivo (nada se borra).
             </p>
 
             <div className="actions">

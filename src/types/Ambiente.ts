@@ -31,9 +31,10 @@ export interface Notificacion {
   fecha: string;
 }
 
+// El body del promote solo lleva los ambientes: el solicitante y el rol los
+// toma el backend de los claims del JWT (environments.py). Los campos viejos
+// `solicitante` y `rol_solicitante` quedaron deprecados y el backend los ignora.
 export interface ParamsPromocion {
   ambiente_origen: string;
   ambiente_destino: string;
-  solicitante: string;
-  rol_solicitante: string;
 }

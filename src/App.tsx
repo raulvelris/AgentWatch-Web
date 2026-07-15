@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import BarraLateral from "./componentes/BarraLateral";
 import WizardAgente from "./componentes/WizardAgente";
@@ -29,25 +29,30 @@ function App() {
 
   const [mostrarPreview, setMostrarPreview] = useState(false);
 
-  const [agentData, setAgentData] = useState<Agente>({
-    id: crypto.randomUUID(),
-    nombre: "",
-    tipo: "Revisor de documentos",
-    proposito: "",
-    fuente: "Documentos PDF",
-    descripcionFuente: "",
-    regla: "",
-    supervision: "Medio",
-    estado: "DRAFT",
-  });
-
-  useEffect(() => {
-    const draft = localStorage.getItem("agentwatch_draft_agent");
-
-    if (draft) {
-      setAgentData(JSON.parse(draft));
+  // El borrador guardado se lee en el inicializador lazy del estado (antes iba
+  // en un useEffect con setState síncrono, que react-hooks/set-state-in-effect
+  // marca como error y provocaba un doble render al montar).
+  const [agentData, setAgentData] = useState<Agente>(() => {
+    try {
+      const draft = localStorage.getItem("agentwatch_draft_agent");
+      if (draft) {
+        return JSON.parse(draft) as Agente;
+      }
+    } catch {
+      // Borrador corrupto: se arranca con el agente vacío.
     }
-  }, []);
+    return {
+      id: crypto.randomUUID(),
+      nombre: "",
+      tipo: "Revisor de documentos",
+      proposito: "",
+      fuente: "Documentos PDF",
+      descripcionFuente: "",
+      regla: "",
+      supervision: "Medio",
+      estado: "DRAFT",
+    };
+  });
 
   const usarPlantilla = (plantilla: Plantilla) => {
     const nuevoAgente: Agente = {

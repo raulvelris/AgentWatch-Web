@@ -27,6 +27,12 @@ export interface EventoDespliegue {
   url?: string;
   salud?: EstadoSalud;
   estado?: EstadoDespliegue;
+  // id de la versión creada (llega en el done, exitoso o fallido).
+  version_id?: string;
+  // Solo en el camino de fallo: la fase "revert" trae la versión restaurada
+  // y el done fallido trae la fase que falló.
+  version_restaurada?: string;
+  fase_fallo?: string;
 }
 
 // Resumen de un agente real del backend (GET /agents/) para el selector de la

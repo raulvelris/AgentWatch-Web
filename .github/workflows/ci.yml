@@ -1,0 +1,35 @@
+name: CI
+
+# RF08 (Web) — Espejo del pipeline del backend: lint -> tests -> build.
+# Cubre PRs y TAMBIEN push directo a main/develop: en el backend, un push
+# directo a main sin CI dejo la suite entera rota sin ninguna alarma
+# (julio 2026); aca se nace con la leccion aprendida.
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [develop, main]
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (eslint)
+        run: npm run lint
+
+      - name: Tests (vitest)
+        run: npm test
+
+      - name: Build (tsc + vite)
+        run: npm run build

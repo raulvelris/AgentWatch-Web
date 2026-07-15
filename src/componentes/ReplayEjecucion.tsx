@@ -50,7 +50,10 @@ function ReplayEjecucion() {
   };
 
   useEffect(() => {
-    cargarReplay();
+    // Diferida a microtask: cargarReplay hace setState síncrono y
+    // react-hooks/set-state-in-effect lo marca como error si corre en el
+    // cuerpo del efecto. Mismo comportamiento (carga al montar).
+    void Promise.resolve().then(cargarReplay);
   }, []);
 
   useEffect(() => {

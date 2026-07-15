@@ -1,5 +1,5 @@
 import { extraerDetalle } from "./apiErrores";
-import { fetchConAuth } from "./authServicio";
+import { fetchConAuth, obtenerSesion } from "./authServicio";
 import { MODO_MOCK } from "./despliegueServicio";
 import type {
   Ambiente,
@@ -119,8 +119,12 @@ let notificacionesMock: Notificacion[] = [
 ];
 
 function promocionarMock(agentId: string, params: ParamsPromocion): Promocion {
-  const esAdmin = params.rol_solicitante.toUpperCase() === "ADMIN";
-  // Misma regla que el backend: a prod solo puede promover un ADMIN.
+  // Misma regla que el backend real: el rol y el solicitante salen del token
+  // de la sesión, NO del body. En demo offline pura (sin sesión) se asume un
+  // ADMIN demo para que el flujo se pueda mostrar igual.
+  const sesion = obtenerSesion();
+  const solicitante = sesion?.usuario ?? "demo@agentwatch.dev";
+  const esAdmin = (sesion?.rol ?? "ADMIN").toUpperCase() === "ADMIN";
   if (params.ambiente_destino === "prod" && !esAdmin) {
     throw new Error(
       "La promoción a prod requiere aprobación de un usuario con rol ADMIN"
@@ -131,8 +135,8 @@ function promocionarMock(agentId: string, params: ParamsPromocion): Promocion {
     agent_id: agentId,
     ambiente_origen: params.ambiente_origen,
     ambiente_destino: params.ambiente_destino,
-    solicitante: params.solicitante,
-    aprobado_por: esAdmin ? params.solicitante : null,
+    solicitante,
+    aprobado_por: esAdmin ? solicitante : null,
     estado: esAdmin ? "aprobada" : "pendiente",
     fecha: new Date().toISOString(),
   };
