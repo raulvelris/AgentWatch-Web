@@ -98,6 +98,9 @@ function HistorialVersiones({ agentId }: Props) {
       setConfirmando(null);
       await recargar();
     } catch (e) {
+      // El modal se cierra también al fallar: su overlay taparía el error-box
+      // y el usuario no vería el motivo (401/403/404 del backend).
+      setConfirmando(null);
       setError(
         e instanceof Error ? e.message : "No se pudo ejecutar el rollback."
       );

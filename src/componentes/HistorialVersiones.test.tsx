@@ -123,6 +123,32 @@ describe("HistorialVersiones", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("si el rollback falla, cierra el modal y el motivo queda visible", async () => {
+    conSesion();
+    vi.mocked(obtenerVersiones).mockResolvedValue(VERSIONES);
+    vi.mocked(ejecutarRollback).mockRejectedValue(
+      new Error("Se requiere rol ADMIN")
+    );
+    const usuario = userEvent.setup();
+
+    render(<HistorialVersiones agentId="a-1" />);
+    await screen.findByText("Versión 3");
+
+    await usuario.click(
+      screen.getAllByRole("button", { name: "Rollback a esta versión" })[0]
+    );
+    await usuario.click(
+      screen.getByRole("button", { name: "Confirmar rollback" })
+    );
+
+    // El motivo tiene que quedar a la vista: si el modal siguiera abierto,
+    // su overlay taparía el error-box de la card.
+    expect(await screen.findByText("Se requiere rol ADMIN")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Confirmar rollback" })
+    ).not.toBeInTheDocument();
+  });
+
   it("ante un error de carga muestra el motivo y Reintentar recarga", async () => {
     vi.mocked(obtenerVersiones)
       .mockRejectedValueOnce(new Error("Agente no encontrado"))
