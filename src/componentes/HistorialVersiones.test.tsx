@@ -163,4 +163,31 @@ describe("HistorialVersiones", () => {
 
     expect(await screen.findByText("Versión 3")).toBeInTheDocument();
   });
+
+  it("subir `refresco` refetchea sin desmontar (el modal abierto sobrevive)", async () => {
+    // Review de correctitud: el refresh por remount (key con contador) mataba
+    // un rollback en vuelo. Ahora el refresh llega por prop, sin remount.
+    conSesion();
+    vi.mocked(obtenerVersiones).mockResolvedValue(VERSIONES);
+    const usuario = userEvent.setup();
+
+    const { rerender } = render(<HistorialVersiones agentId="a-1" refresco={0} />);
+    await screen.findByText("Versión 3");
+
+    await usuario.click(
+      screen.getAllByRole("button", { name: "Rollback a esta versión" })[0]
+    );
+    expect(
+      screen.getByRole("heading", { name: "Confirmar rollback" })
+    ).toBeInTheDocument();
+
+    rerender(<HistorialVersiones agentId="a-1" refresco={1} />);
+
+    await waitFor(() => {
+      expect(obtenerVersiones).toHaveBeenCalledTimes(2);
+    });
+    expect(
+      screen.getByRole("heading", { name: "Confirmar rollback" })
+    ).toBeInTheDocument();
+  });
 });

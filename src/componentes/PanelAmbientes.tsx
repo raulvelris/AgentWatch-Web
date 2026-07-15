@@ -74,6 +74,11 @@ function PanelAmbientes({ agentId }: Props) {
   const [nombreVar, setNombreVar] = useState("");
   const [valorVar, setValorVar] = useState("");
   const [guardandoVar, setGuardandoVar] = useState(false);
+  // Contador de recarga de variables: guardar/eliminar lo suben y recarga el
+  // ÚNICO lector (el efecto), que siempre ve el varsEnv vigente. Recargar con
+  // un closure del click pisaba la tabla con las vars de un ambiente viejo si
+  // el usuario cambiaba el select con el request en vuelo.
+  const [varsRefresco, setVarsRefresco] = useState(0);
   const [varsMsg, setVarsMsg] = useState<{
     tipo: "ok" | "err";
     texto: string;
@@ -221,19 +226,7 @@ function PanelAmbientes({ agentId }: Props) {
     return () => {
       ignorar = true;
     };
-  }, [cargarVars]);
-
-  const recargarVars = useCallback(async () => {
-    try {
-      const v = await listarVarsAmbiente(agentId, varsEnv);
-      setVars(v);
-      setVarsError(null);
-    } catch (e) {
-      setVarsError(
-        e instanceof Error ? e.message : "No se pudieron recargar las variables."
-      );
-    }
-  }, [agentId, varsEnv]);
+  }, [cargarVars, varsRefresco]);
 
   const guardarVar = async () => {
     const nombre = nombreVar.trim();
@@ -255,7 +248,7 @@ function PanelAmbientes({ agentId }: Props) {
       });
       setNombreVar("");
       setValorVar("");
-      await recargarVars();
+      setVarsRefresco((v) => v + 1);
     } catch (e) {
       setVarsMsg({
         tipo: "err",
@@ -272,7 +265,7 @@ function PanelAmbientes({ agentId }: Props) {
     try {
       await eliminarVarAmbiente(agentId, varsEnv, nombre);
       setVarsMsg({ tipo: "ok", texto: `Variable "${nombre}" eliminada.` });
-      await recargarVars();
+      setVarsRefresco((v) => v + 1);
     } catch (e) {
       setVarsMsg({
         tipo: "err",
@@ -359,6 +352,14 @@ function PanelAmbientes({ agentId }: Props) {
 
       {/* Historial de promociones. */}
       <h3 className="bloque-titulo">Historial de promociones</h3>
+      {/* Error de recarga con la tabla ya poblada: sin este bloque inline el
+          mensaje no se pintaba en ningún lado (mismo patrón que el historial
+          de versiones). */}
+      {error && promociones.length > 0 && (
+        <div className="error-box" style={{ marginBottom: "12px" }}>
+          <p style={{ margin: 0 }}>{error}</p>
+        </div>
+      )}
       {cargando ? (
         <p>Cargando ambientes y promociones...</p>
       ) : error && promociones.length === 0 ? (

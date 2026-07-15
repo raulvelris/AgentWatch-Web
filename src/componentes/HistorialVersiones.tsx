@@ -9,6 +9,10 @@ import type { Version } from "../types/Version";
 
 type Props = {
   agentId: string;
+  // Contador de refresh del panel padre: cada deploy terminado lo sube y el
+  // efecto de carga refetchea SIN remontar el componente (un remount por key
+  // destruiría un modal de rollback en vuelo).
+  refresco?: number;
 };
 
 function etiquetaEstado(estado: Version["estado"]) {
@@ -24,7 +28,7 @@ function etiquetaEstado(estado: Version["estado"]) {
   return "pill";
 }
 
-function HistorialVersiones({ agentId }: Props) {
+function HistorialVersiones({ agentId, refresco = 0 }: Props) {
   const [versiones, setVersiones] = useState<Version[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,8 +52,9 @@ function HistorialVersiones({ agentId }: Props) {
     }
   }, [agentId]);
 
-  // Carga inicial / al cambiar de agente. El setState va dentro de los callbacks
-  // .then/.catch (asíncronos), no en el cuerpo síncrono del efecto, para cumplir
+  // Carga inicial, al cambiar de agente y al subir `refresco` (deploy recién
+  // terminado). El setState va dentro de los callbacks .then/.catch
+  // (asíncronos), no en el cuerpo síncrono del efecto, para cumplir
   // react-hooks/set-state-in-effect.
   useEffect(() => {
     let ignorar = false;
@@ -73,7 +78,7 @@ function HistorialVersiones({ agentId }: Props) {
     return () => {
       ignorar = true;
     };
-  }, [agentId]);
+  }, [agentId, refresco]);
 
   const reintentar = () => {
     setCargando(true);

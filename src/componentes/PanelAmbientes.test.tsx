@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { Promocion } from "../types/Ambiente";
@@ -15,6 +15,7 @@ vi.mock("../servicios/ambientesServicio", () => ({
 
 import PanelAmbientes from "./PanelAmbientes";
 import {
+  guardarVarsAmbiente,
   listarAmbientes,
   listarNotificaciones,
   listarPromociones,
@@ -162,5 +163,65 @@ describe("PanelAmbientes", () => {
 
     expect(await screen.findByText("OPENAI_KEY")).toBeInTheDocument();
     expect(screen.getByText("sk-***")).toBeInTheDocument();
+  });
+
+  it("guardar una variable no pisa la tabla si el usuario cambió de ambiente", async () => {
+    // Review de correctitud: recargarVars capturaba el varsEnv del click. Si el
+    // PUT resolvía después de cambiar el select, la tabla del ambiente nuevo
+    // quedaba pisada con las variables del ambiente viejo.
+    mocksBase();
+    conSesion();
+    vi.mocked(listarVarsAmbiente).mockImplementation(
+      async (_id, env): Promise<Record<string, string>> =>
+        env === "dev" ? { DEV_VAR: "d***" } : { STG_VAR: "s***" }
+    );
+    let resolverPut: () => void = () => {};
+    vi.mocked(guardarVarsAmbiente).mockImplementation(
+      () =>
+        new Promise<void>((res) => {
+          resolverPut = res;
+        })
+    );
+    const usuario = userEvent.setup();
+
+    render(<PanelAmbientes agentId="a-1" />);
+    expect(await screen.findByText("DEV_VAR")).toBeInTheDocument();
+
+    // Dispara el PUT (queda en vuelo) y cambia a staging mientras tanto.
+    await usuario.type(screen.getByLabelText("Nombre"), "NUEVA");
+    await usuario.type(screen.getByLabelText("Valor (secreto)"), "x");
+    await usuario.click(screen.getByRole("button", { name: "Guardar cifrada" }));
+    await usuario.selectOptions(screen.getByLabelText("Ambiente"), "staging");
+    expect(await screen.findByText("STG_VAR")).toBeInTheDocument();
+
+    resolverPut();
+    // La tabla tiene que seguir mostrando staging, no las vars de dev.
+    await waitFor(() => {
+      expect(screen.queryByText("DEV_VAR")).not.toBeInTheDocument();
+    });
+    expect(screen.getByText("STG_VAR")).toBeInTheDocument();
+  });
+
+  it("si la recarga tras una promoción falla, el error se ve aunque haya tabla", async () => {
+    // Review de correctitud: con promociones ya cargadas, el error de recargar()
+    // se seteaba pero ningún bloque del JSX lo pintaba.
+    mocksBase({ promociones: [PROMO_APROBADA] });
+    conSesion();
+    vi.mocked(solicitarPromocion).mockResolvedValue(PROMO_APROBADA);
+    vi.mocked(listarPromociones)
+      .mockResolvedValueOnce([PROMO_APROBADA]) // carga inicial
+      .mockRejectedValueOnce(new Error("No se pudieron recargar los datos.")); // recarga
+    const usuario = userEvent.setup();
+
+    render(<PanelAmbientes agentId="a-1" />);
+    await screen.findByRole("button", { name: "Solicitar Promotion" });
+
+    await usuario.click(
+      screen.getByRole("button", { name: "Solicitar Promotion" })
+    );
+
+    expect(
+      await screen.findByText("No se pudieron recargar los datos.")
+    ).toBeInTheDocument();
   });
 });

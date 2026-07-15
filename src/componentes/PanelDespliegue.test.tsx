@@ -5,13 +5,24 @@ import { describe, expect, it, vi } from "vitest";
 // Hijos reemplazados por marcadores: acá se prueba SOLO la lógica del selector
 // (carga, preferencia, persistencia). Cada hijo tiene sus propios tests.
 vi.mock("./RegistroDespliegue", () => ({
-  default: ({ agentId }: { agentId: string }) => (
-    <div data-testid="registro">{agentId}</div>
+  default: ({
+    agentId,
+    onDespliegueTerminado,
+  }: {
+    agentId: string;
+    onDespliegueTerminado?: () => void;
+  }) => (
+    <div data-testid="registro">
+      {agentId}
+      <button onClick={() => onDespliegueTerminado?.()}>terminar-deploy</button>
+    </div>
   ),
 }));
 vi.mock("./HistorialVersiones", () => ({
-  default: ({ agentId }: { agentId: string }) => (
-    <div data-testid="historial">{agentId}</div>
+  default: ({ agentId, refresco }: { agentId: string; refresco?: number }) => (
+    <div data-testid="historial">
+      {agentId} refresco:{String(refresco)}
+    </div>
   ),
 }));
 vi.mock("./PanelAmbientes", () => ({
@@ -81,6 +92,22 @@ describe("PanelDespliegue (selector de agentes reales)", () => {
 
     expect(localStorage.getItem(CLAVE)).toBe("a-2");
     expect(screen.getByTestId("historial")).toHaveTextContent("a-2");
+  });
+
+  it("al terminar un deploy refresca el historial por prop, sin remontarlo", async () => {
+    // Review de correctitud: refrescar remontando por key destruía un modal de
+    // rollback en vuelo; ahora el contador viaja como prop `refresco`.
+    vi.mocked(listarAgentes).mockResolvedValue(LISTA);
+    const usuario = userEvent.setup();
+
+    render(<PanelDespliegue />);
+    await screen.findByRole("combobox");
+
+    expect(screen.getByTestId("historial")).toHaveTextContent("refresco:0");
+
+    await usuario.click(screen.getByRole("button", { name: "terminar-deploy" }));
+
+    expect(screen.getByTestId("historial")).toHaveTextContent("refresco:1");
   });
 
   it("sin agentes muestra el aviso del wizard y no monta paneles", async () => {
