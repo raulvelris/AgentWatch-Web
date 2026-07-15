@@ -1,7 +1,7 @@
 import type { AgenteResumen, EventoDespliegue } from "../types/Despliegue";
 import type { Version } from "../types/Version";
 import { extraerDetalle } from "./apiErrores";
-import { fetchConAuth } from "./authServicio";
+import { fetchConAuth, obtenerSesion } from "./authServicio";
 
 // Mismo contrato y estilo que agenteServicio.ts (fetch plano, sin librerías).
 const API_URL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000/api/v1";
@@ -241,34 +241,39 @@ function desplegarMock(
 // RF07 — Historial de versiones y rollback.
 // ---------------------------------------------------------------------------
 
-// Fixture mutable para que el rollback se refleje en la demo.
+// Fixture mutable para que el rollback se refleje en la demo. Replica la
+// forma REAL del backend: ids "{agent}-v{n}", fechas ISO-8601 UTC, orden
+// ascendente por numero y descripcion incluida (versions.py).
 let versionesMock: Version[] = [
   {
-    id: "v-3",
-    numero: 3,
-    fecha: "2026-05-30 14:22",
-    autor: "enzo.ordonez",
-    hash_sha256:
-      "9f2c1a7b4e6d8c0f3a2b5d7e9c1f4a6b8d0e2c4f6a8b0d2e4c6f8a0b2d4e6f81",
-    estado: "activa",
-  },
-  {
-    id: "v-2",
-    numero: 2,
-    fecha: "2026-05-28 09:10",
-    autor: "maria.lopez",
-    hash_sha256:
-      "3b7e1d9f5a2c8e4b6d0f2a4c6e8b0d2f4a6c8e0b2d4f6a8c0e2b4d6f8a0c2e43",
-    estado: "inactiva",
-  },
-  {
-    id: "v-1",
+    id: "agente-demo-v1",
     numero: 1,
-    fecha: "2026-05-25 17:45",
+    fecha: "2026-05-25T17:45:00+00:00",
     autor: "enzo.ordonez",
     hash_sha256:
       "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b",
     estado: "inactiva",
+    descripcion: "Deploy de agente-demo",
+  },
+  {
+    id: "agente-demo-v2",
+    numero: 2,
+    fecha: "2026-05-28T09:10:00+00:00",
+    autor: "maria.lopez",
+    hash_sha256:
+      "3b7e1d9f5a2c8e4b6d0f2a4c6e8b0d2f4a6c8e0b2d4f6a8c0e2b4d6f8a0c2e43",
+    estado: "inactiva",
+    descripcion: "Deploy de agente-demo",
+  },
+  {
+    id: "agente-demo-v3",
+    numero: 3,
+    fecha: "2026-05-30T14:22:00+00:00",
+    autor: "enzo.ordonez",
+    hash_sha256:
+      "9f2c1a7b4e6d8c0f3a2b5d7e9c1f4a6b8d0e2c4f6a8b0d2e4c6f8a0b2d4e6f81",
+    estado: "activa",
+    descripcion: "Deploy de agente-demo",
   },
 ];
 
@@ -296,15 +301,32 @@ export async function ejecutarRollback(
   versionId: string
 ): Promise<{ ok: boolean }> {
   if (MODO_MOCK) {
-    versionesMock = versionesMock.map((version) => {
-      if (version.id === versionId) {
-        return { ...version, estado: "activa" };
-      }
-      if (version.estado === "activa") {
-        return { ...version, estado: "rollback" };
-      }
-      return version;
-    });
+    // Semántica real del backend (versions.py, append-only): la vigente
+    // (activa o rollback) pasa a "inactiva" y se crea una versión NUEVA con
+    // estado "rollback" que hereda el hash de la objetivo. La objetivo NO
+    // vuelve a quedar "activa" y nada se borra.
+    const objetivo = versionesMock.find((v) => v.id === versionId);
+    if (!objetivo) {
+      throw new Error("Versión no encontrada");
+    }
+    const numero = Math.max(...versionesMock.map((v) => v.numero)) + 1;
+    const prefijo = objetivo.id.replace(/-v\d+$/, "");
+    versionesMock = [
+      ...versionesMock.map((v) =>
+        v.estado === "activa" || v.estado === "rollback"
+          ? { ...v, estado: "inactiva" as const }
+          : v
+      ),
+      {
+        id: `${prefijo}-v${numero}`,
+        numero,
+        fecha: new Date().toISOString(),
+        autor: obtenerSesion()?.usuario ?? "demo@agentwatch.dev",
+        hash_sha256: objetivo.hash_sha256,
+        estado: "rollback",
+        descripcion: `rollback to ${versionId}`,
+      },
+    ];
     return { ok: true };
   }
 

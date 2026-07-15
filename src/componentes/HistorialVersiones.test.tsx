@@ -164,6 +164,39 @@ describe("HistorialVersiones", () => {
     expect(await screen.findByText("Versión 3")).toBeInTheDocument();
   });
 
+  it("tras un rollback real la vigente tiene estado 'rollback' y no es rollbackeable", async () => {
+    // Review de contrato: para el backend, vigente es activa O rollback
+    // (versions.py filtra ambas). El front trataba como vigente solo a
+    // 'activa': tras un rollback real habilitaba el boton sobre la propia
+    // version vigente (rollback a si misma = version duplicada inutil).
+    const trasRollback: Version[] = [
+      { ...VERSIONES[0] }, // v1 inactiva
+      { ...VERSIONES[1] }, // v2 fallida
+      { ...VERSIONES[2], estado: "inactiva" }, // v3 dejo de ser vigente
+      {
+        id: "a-1-v4",
+        numero: 4,
+        fecha: "2026-07-04",
+        autor: "admin_a",
+        hash_sha256: HASH_V1, // hereda el hash de la objetivo (v1)
+        estado: "rollback",
+      },
+    ];
+    vi.mocked(obtenerVersiones).mockResolvedValue(trasRollback);
+
+    render(<HistorialVersiones agentId="a-1" />);
+    await screen.findByText("Versión 4");
+
+    // La vigente (estado rollback) queda deshabilitada y etiquetada como tal.
+    expect(
+      screen.getByRole("button", { name: "Versión vigente" })
+    ).toBeDisabled();
+    // Las realmente no-vigentes siguen siendo rollbackeables (v1, v2 y v3).
+    expect(
+      screen.getAllByRole("button", { name: "Rollback a esta versión" })
+    ).toHaveLength(3);
+  });
+
   it("subir `refresco` refetchea sin desmontar (el modal abierto sobrevive)", async () => {
     // Review de correctitud: el refresh por remount (key con contador) mataba
     // un rollback en vuelo. Ahora el refresh llega por prop, sin remount.

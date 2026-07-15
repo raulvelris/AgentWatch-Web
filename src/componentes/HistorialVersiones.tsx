@@ -15,6 +15,13 @@ type Props = {
   refresco?: number;
 };
 
+// Vigente para el backend es "activa" O "rollback" (versions.py filtra ambas):
+// tras un rollback real, la versión vigente tiene estado "rollback" y hacer
+// rollback sobre ella solo crearía una versión duplicada inútil.
+function esVigente(estado: Version["estado"]): boolean {
+  return estado === "activa" || estado === "rollback";
+}
+
 function etiquetaEstado(estado: Version["estado"]) {
   if (estado === "activa") {
     return "pill pill-ok";
@@ -180,13 +187,13 @@ function HistorialVersiones({ agentId, refresco = 0 }: Props) {
                   <button
                     className="secondary"
                     onClick={() => setConfirmando(version)}
-                    disabled={
-                      version.estado === "activa" || rollbackId !== null
-                    }
+                    disabled={esVigente(version.estado) || rollbackId !== null}
                   >
-                    {version.estado === "activa"
-                      ? "Versión activa"
-                      : "Rollback a esta versión"}
+                    {!esVigente(version.estado)
+                      ? "Rollback a esta versión"
+                      : version.estado === "activa"
+                        ? "Versión activa"
+                        : "Versión vigente"}
                   </button>
                 </div>
               </div>
@@ -202,7 +209,8 @@ function HistorialVersiones({ agentId, refresco = 0 }: Props) {
             <p>
               Vas a revertir el agente a la <strong>versión{" "}
               {confirmando.numero}</strong> ({confirmando.fecha}). La versión
-              activa actual quedará marcada como rollback.
+              vigente pasa a inactiva y se crea una versión nueva marcada como
+              rollback, con el hash de la versión objetivo (nada se borra).
             </p>
 
             <div className="actions">

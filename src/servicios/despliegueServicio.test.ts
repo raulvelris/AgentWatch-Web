@@ -148,6 +148,44 @@ describe("ejecutarRollback", () => {
   });
 });
 
+describe("rollback en modo demo (contrato real del backend)", () => {
+  it("es append-only: crea una versión nueva 'rollback' con el hash heredado", async () => {
+    // Review de contrato: el mock viejo marcaba la objetivo como 'activa' y la
+    // activa como 'rollback' (semántica INVERSA a la del backend, que apendea
+    // una versión nueva y pasa la vigente a 'inactiva').
+    vi.resetModules();
+    vi.stubEnv("VITE_MODO_MOCK", "true");
+    const servicio = await import("./despliegueServicio");
+
+    const antes = await servicio.obtenerVersiones("agente-demo");
+    const objetivo = antes[0];
+    const vigenteAntes = antes.find(
+      (v) => v.estado === "activa" || v.estado === "rollback"
+    );
+
+    await servicio.ejecutarRollback("agente-demo", objetivo.id);
+    const despues = await servicio.obtenerVersiones("agente-demo");
+
+    // Nada se borra: hay una versión más.
+    expect(despues).toHaveLength(antes.length + 1);
+    // La nueva es la última, con estado rollback y el hash de la objetivo.
+    const nueva = despues[despues.length - 1];
+    expect(nueva.estado).toBe("rollback");
+    expect(nueva.hash_sha256).toBe(objetivo.hash_sha256);
+    // La objetivo NO queda activa; la vigente anterior pasa a inactiva.
+    expect(despues.find((v) => v.id === objetivo.id)?.estado).toBe("inactiva");
+    expect(despues.find((v) => v.id === vigenteAntes?.id)?.estado).toBe(
+      "inactiva"
+    );
+    // Exactamente una vigente.
+    expect(
+      despues.filter((v) => v.estado === "activa" || v.estado === "rollback")
+    ).toHaveLength(1);
+
+    vi.unstubAllEnvs();
+  });
+});
+
 describe("desplegarAgente (SSE real sobre fetch + ReadableStream)", () => {
   it("parsea frames partidos entre chunks y con CRLF, y termina en onFin", async () => {
     // El primer frame llega cortado a mitad del JSON y con CRLF; el segundo
@@ -242,6 +280,8 @@ describe("desplegarAgente (SSE real sobre fetch + ReadableStream)", () => {
 
     expect(espia.eventos[0]).toMatchObject({ fase: "healthcheck", estado: "error" });
     expect(espia.eventos[1]).toMatchObject({ fase: "revert" });
+    // El tipo EventoDespliegue declara los campos extra del camino de fallo.
+    expect(espia.eventos[1].version_restaurada).toBe("a-1-v1");
     expect(espia.eventos[2]).toMatchObject({ fase: "done", estado: "failed" });
     // El frame done (aunque failed) es terminal: cuenta como fin, no como corte.
     expect(espia.onFin).toHaveBeenCalledTimes(1);

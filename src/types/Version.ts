@@ -13,4 +13,7 @@ export interface Version {
   autor: string;
   hash_sha256: string;
   estado: EstadoVersion;
+  // El backend la manda siempre ("Deploy ...", "rollback to ..."); opcional
+  // para no romper fixtures viejas.
+  descripcion?: string;
 }

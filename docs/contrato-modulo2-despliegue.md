@@ -112,6 +112,9 @@ interface EventoDespliegue {
   url?: string;        // solo en "done"
   salud?: EstadoSalud; // solo en "done"
   estado?: EstadoDespliegue;
+  version_id?: string;         // en el done (exitoso o fallido)
+  version_restaurada?: string; // solo en la fase "revert"
+  fase_fallo?: string;         // solo en el done fallido
 }
 ```
 
@@ -130,16 +133,20 @@ GET /api/v1/agents/{id}/versions
 {
   "versions": [
     {
-      "id": "v-3",
+      "id": "{agent_id}-v3",
       "numero": 3,
-      "fecha": "2026-05-30 14:22",
+      "fecha": "2026-05-30T14:22:00+00:00",
       "autor": "enzo.ordonez",
       "hash_sha256": "9f2c1a7b...81",
-      "estado": "activa"
+      "estado": "activa",
+      "descripcion": "Deploy de {agent_id}"
     }
   ]
 }
 ```
+
+Las versiones llegan en orden **ascendente** por `numero` (la más nueva al
+final), los ids tienen la forma `{agent_id}-v{n}` y las fechas son ISO-8601 UTC.
 
 Si el cuerpo no trae `versions` como array, el frontend degrada a lista vacía
 (estado "sin versiones") en vez de romper.
@@ -156,8 +163,13 @@ interface Version {
   autor: string;
   hash_sha256: string;
   estado: EstadoVersion;
+  descripcion?: string; // "Deploy ..." o "rollback to ..."
 }
 ```
+
+**Vigente** para el backend es la versión con estado `activa` **o** `rollback`
+(tras un rollback, la vigente queda con estado `rollback`). El frontend
+deshabilita el botón de rollback sobre la vigente en ambos casos.
 
 Una versión candidata cuyo deploy falla queda con estado `fallida` (el revert
 automático de RF05 marca la candidata como `fallida` y restaura la versión previa
@@ -224,17 +236,16 @@ Content-Type: application/json
 ```json
 {
   "ambiente_origen": "dev",
-  "ambiente_destino": "staging",
-  "solicitante": "usuario@demo.com",
-  "rol_solicitante": "DEVELOPER"
+  "ambiente_destino": "staging"
 }
 ```
 
 **Auth:** promover exige un token válido en el header `Authorization: Bearer <token>`
-(`401` sin token). El rol sale de los claims del JWT; el destino `prod` exige rol
-`ADMIN` (`403` si no). El campo `rol_solicitante` del body quedó **deprecado**: ya
-no se usa, el rol es el del token. Se mantiene en el body por compatibilidad hasta
-que el front deje de mandarlo. El front obtiene el token del login
+(`401` sin token). El **solicitante y el rol salen de los claims del JWT** (sub y
+rol); el destino `prod` exige rol `ADMIN` (`403` si no). Los campos viejos del
+body `solicitante` y `rol_solicitante` quedaron **deprecados**: el backend los
+ignora si llegan (compatibilidad) y el front ya no los manda ni los pide en el
+formulario. El front obtiene el token del login
 (`GET /api/v1/auth/login?usuario=...`) y lo guarda para las llamadas del módulo.
 
 **Reglas del backend:**
@@ -247,7 +258,8 @@ que el front deje de mandarlo. El front obtiene el token del login
   activa del tenant (tasa de éxito de sus últimos N despliegues). Sin políticas de
   gate activas, este chequeo no interviene y el flujo es idéntico al anterior. El
   frontend ya muestra el `detail` inline, así que no necesita cambios para el 409.
-- Rol `"ADMIN"` → `estado: "aprobada"`, `aprobado_por` = solicitante
+- Rol `"ADMIN"` (del token) → `estado: "aprobada"`, `aprobado_por` = solicitante
+  (el `sub` del token)
 - Rol no-admin → `estado: "pendiente"`, encola notificación al ADMIN
 - Una promoción `aprobada` mueve la config del agente: copia (upsert) sus
   variables de entorno del `ambiente_origen` al `ambiente_destino`. Sobrescribe
