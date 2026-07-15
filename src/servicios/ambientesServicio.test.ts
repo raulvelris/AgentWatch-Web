@@ -61,8 +61,6 @@ describe("solicitarPromocion", () => {
     const r = await solicitarPromocion("a-1", {
       ambiente_origen: "dev",
       ambiente_destino: "staging",
-      solicitante: "admin_a",
-      rol_solicitante: "ADMIN",
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -86,8 +84,6 @@ describe("solicitarPromocion", () => {
       solicitarPromocion("a-1", {
         ambiente_origen: "staging",
         ambiente_destino: "prod",
-        solicitante: "admin_a",
-        rol_solicitante: "ADMIN",
       })
     ).rejects.toThrow("Release gate: tasa de éxito 40% por debajo del umbral 80%");
   });
@@ -107,12 +103,42 @@ describe("solicitarPromocion", () => {
       solicitarPromocion("a-1", {
         ambiente_origen: "staging",
         ambiente_destino: "prod",
-        solicitante: "dev1",
-        rol_solicitante: "DEVELOPER",
       })
     ).rejects.toThrow(
       "La promoción a prod requiere aprobación de un usuario con rol ADMIN"
     );
+  });
+});
+
+describe("promocionarMock (modo demo)", () => {
+  it("aplica la regla real: el rol y el solicitante salen de la sesión", async () => {
+    // MODO_MOCK se evalúa al importar el módulo: hay que re-importarlo con la
+    // env var puesta para ejercitar la rama de demo.
+    vi.resetModules();
+    vi.stubEnv("VITE_MODO_MOCK", "true");
+    sessionStorage.setItem(
+      "agentwatch_auth",
+      JSON.stringify({ token: "t", usuario: "viewer_a", rol: "VIEWER", tenant: "x" })
+    );
+    const servicio = await import("./ambientesServicio");
+
+    // Con sesión VIEWER, prod se rechaza (misma regla que el backend)...
+    await expect(
+      servicio.solicitarPromocion("a-1", {
+        ambiente_origen: "staging",
+        ambiente_destino: "prod",
+      })
+    ).rejects.toThrow(/rol ADMIN/);
+
+    // ...y a staging queda pendiente, a nombre del usuario de la sesión.
+    const p = await servicio.solicitarPromocion("a-1", {
+      ambiente_origen: "dev",
+      ambiente_destino: "staging",
+    });
+    expect(p.estado).toBe("pendiente");
+    expect(p.solicitante).toBe("viewer_a");
+
+    vi.unstubAllEnvs();
   });
 });
 

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { obtenerSesion } from "../servicios/authServicio";
+import { MODO_MOCK } from "../servicios/despliegueServicio";
 import {
   eliminarVarAmbiente,
   guardarVarsAmbiente,
@@ -52,11 +54,10 @@ function PanelAmbientes({ agentId }: Props) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Formulario de promotion.
+  // Formulario de promotion. El solicitante y el rol NO se piden acá: el
+  // backend los toma de los claims del JWT de la sesión.
   const [origen, setOrigen] = useState("dev");
   const [destino, setDestino] = useState("staging");
-  const [solicitante, setSolicitante] = useState("demo@agentwatch.dev");
-  const [rol, setRol] = useState("DEVELOPER");
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<{
     tipo: "ok" | "err";
@@ -154,14 +155,23 @@ function PanelAmbientes({ agentId }: Props) {
       setResultado({ tipo: "err", texto: "Falta el ID del agente." });
       return;
     }
+    // Corte en el cliente: el promote exige token válido. Sin sesión se avisa
+    // acá mismo en vez de disparar un request que va a dar 401 (mismo patrón
+    // que deploy y rollback).
+    if (!MODO_MOCK && !obtenerSesion()) {
+      setResultado({
+        tipo: "err",
+        texto:
+          "Sin sesión activa: entra como admin_a (ADMIN) o viewer_a (VIEWER) en la barra superior para solicitar una promoción.",
+      });
+      return;
+    }
     setEnviando(true);
     setResultado(null);
     try {
       const promocion = await solicitarPromocion(agentId, {
         ambiente_origen: origen,
         ambiente_destino: destino,
-        solicitante: solicitante.trim() || "demo@agentwatch.dev",
-        rol_solicitante: rol,
       });
       setResultado({
         tipo: "ok",
@@ -300,8 +310,9 @@ function PanelAmbientes({ agentId }: Props) {
         ))}
       </div>
 
-      {/* Formulario de promotion. El select de rol es el stub sin JWT que
-          permite demostrar ambos flujos (DEVELOPER pendiente / ADMIN aprobada). */}
+      {/* Formulario de promotion. Solo se eligen los ambientes: el solicitante
+          y el rol los toma el backend del token JWT de la sesión (los campos
+          que antes se pedían acá estaban deprecados y el backend los ignoraba). */}
       <div className="promo-form">
         <div>
           <label htmlFor="amb-origen">Ambiente origen</label>
@@ -326,30 +337,13 @@ function PanelAmbientes({ agentId }: Props) {
             <option value="prod">prod</option>
           </select>
         </div>
-
-        <div>
-          <label htmlFor="amb-solicitante">Solicitante</label>
-          <input
-            id="amb-solicitante"
-            type="text"
-            value={solicitante}
-            onChange={(e) => setSolicitante(e.target.value)}
-            placeholder="correo@dominio"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="amb-rol">Rol (stub sin JWT)</label>
-          <select
-            id="amb-rol"
-            value={rol}
-            onChange={(e) => setRol(e.target.value)}
-          >
-            <option value="DEVELOPER">DEVELOPER</option>
-            <option value="ADMIN">ADMIN</option>
-          </select>
-        </div>
       </div>
+
+      <p style={{ marginTop: "8px", color: "#94a3b8", fontSize: "13px" }}>
+        La solicitud sale a nombre del usuario de la sesión: el backend toma el
+        solicitante y el rol del token JWT. Para el flujo con aprobación entra
+        como viewer_a; para aprobar directo (y promover a prod), como admin_a.
+      </p>
 
       <div className="actions" style={{ justifyContent: "flex-start" }}>
         <button className="primary" onClick={enviar} disabled={enviando}>

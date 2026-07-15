@@ -105,6 +105,45 @@ describe("PanelAmbientes", () => {
     ).toBeInTheDocument();
   });
 
+  it("el form ya no pide solicitante ni rol: salen del token de la sesión", async () => {
+    mocksBase();
+    conSesion();
+    vi.mocked(solicitarPromocion).mockResolvedValue(PROMO_APROBADA);
+    const usuario = userEvent.setup();
+
+    render(<PanelAmbientes agentId="a-1" />);
+    await screen.findByRole("button", { name: "Solicitar Promotion" });
+
+    // Los dos campos muertos (el backend los ignoraba) ya no existen.
+    expect(screen.queryByLabelText(/Rol \(stub sin JWT\)/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Solicitante")).not.toBeInTheDocument();
+
+    await usuario.click(
+      screen.getByRole("button", { name: "Solicitar Promotion" })
+    );
+
+    // El body va sin solicitante ni rol_solicitante: el backend usa el JWT.
+    expect(solicitarPromocion).toHaveBeenCalledWith("a-1", {
+      ambiente_origen: "dev",
+      ambiente_destino: "staging",
+    });
+  });
+
+  it("sin sesión el promote corta en el cliente con un hint", async () => {
+    mocksBase();
+    const usuario = userEvent.setup();
+
+    render(<PanelAmbientes agentId="a-1" />);
+    await screen.findByRole("button", { name: "Solicitar Promotion" });
+
+    await usuario.click(
+      screen.getByRole("button", { name: "Solicitar Promotion" })
+    );
+
+    expect(screen.getByText(/Sin sesión activa/)).toBeInTheDocument();
+    expect(solicitarPromocion).not.toHaveBeenCalled();
+  });
+
   it("el 503 de ENVVARS_KEY llega a la sección de variables con su detalle", async () => {
     mocksBase();
     const motivo =
