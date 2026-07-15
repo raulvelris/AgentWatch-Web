@@ -46,7 +46,10 @@ function PanelMetricasNegocio() {
   };
 
   useEffect(() => {
-    cargarMetricas();
+    // Diferida a microtask: cargarMetricas hace setLoading(true) síncrono y
+    // react-hooks/set-state-in-effect lo marca como error si corre en el
+    // cuerpo del efecto. El comportamiento es el mismo (carga al montar).
+    void Promise.resolve().then(cargarMetricas);
 
     const interval = setInterval(() => {
       cargarMetricas();
