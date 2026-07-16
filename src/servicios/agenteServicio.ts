@@ -1,9 +1,11 @@
+import { fetchConAuth } from "./authServicio";
+
 const API_URL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000/api/v1";
 
 // El payload llega ya convertido a la forma del backend (snake_case) por el
 // wizard; unknown en vez de any: JSON.stringify no necesita más.
 export const crearAgente = async (agente: unknown) => {
-  const response = await fetch(`${API_URL}/agents/`, {
+  const response = await fetchConAuth(`${API_URL}/agents/`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
