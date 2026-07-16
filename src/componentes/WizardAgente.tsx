@@ -100,25 +100,33 @@ function WizardAgente({ agentData, setAgentData }: Props) {
     alert("Borrador guardado correctamente.");
   };
 
- const finalizarAgente = async () => {
+const finalizarAgente = async () => {
   try {
     const agenteBackend = convertirAgenteParaBackend();
 
-    const respuesta = await crearAgente(agenteBackend);
-
-    const agenteCreado = {
-      ...agentData,
-      id: respuesta.agent.id,
-    };
-
-    setAgentData(agenteCreado);
-
-    localStorage.setItem(
-      "agentwatch_draft_agent",
-      JSON.stringify(agenteCreado)
-    );
+    await crearAgente(agenteBackend);
 
     alert("Agente creado correctamente en el backend.");
+
+    const nuevoAgente: Agente = {
+      id: crypto.randomUUID(),
+      nombre: "",
+      tipo: "Revisor de documentos",
+      proposito: "",
+      fuente: "Documentos PDF",
+      descripcionFuente: "",
+      regla: "",
+      supervision: "Medio",
+      estado: "DRAFT",
+    };
+
+    localStorage.removeItem("agentwatch_draft_agent");
+
+    setAgentData(nuevoAgente);
+    setActiveStep(0);
+    setTestInput("");
+    setTestResponse("");
+    setError("");
   } catch (error) {
     console.error(error);
     alert("Error al crear el agente en el backend.");
